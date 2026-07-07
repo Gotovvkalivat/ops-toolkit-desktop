@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Массовый расчёт доставки</title>
+  <link rel="icon" type="image/png" sizes="128x128" href="icon128.png">
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div id="brandMark" class="brand-mark" aria-hidden="true"><span class="calculator-mark"></span></div>
+      <div class="brand-copy">
+        <div class="brand-title-row">
+          <div class="project-switcher" aria-label="Активный проект"><span class="project-switcher-label">Проект</span><nav id="projectTabs" class="project-tabs" aria-label="Проекты"></nav></div>
+          <h1><span id="activeProjectTitle">Курьер Дисконт</span> · Массовый расчёт доставки</h1>
+        </div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="quick-client-panel top-client-panel">
+        <label class="quick-client-field"><span class="visually-hidden">ИНН клиента</span><input id="quickInnInput" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="ИНН клиента"></label>
+        <button id="quickFindClientBtn" class="button secondary">Найти</button>
+        <div id="quickClientResult" class="quick-client-result neutral">Контрагент не выбран</div>
+      </div>
+      <span id="connectionBadge" class="badge neutral hidden" aria-hidden="true">Не настроено</span>
+      <button id="cacheStatusBtn" class="button ghost small hidden" data-tip="Статистика и очистка кэша">Кэш</button>
+      <button id="helpBtn" class="icon-button top-icon" data-tip="Как быстро рассчитать" aria-label="Как быстро рассчитать">?</button>
+      <button id="themeToggleBtn" class="icon-button top-icon" data-tip="Переключить тему" aria-label="Переключить тему">◐</button>
+      <button id="openSettingsBtn" class="button secondary">Настройки</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="toolbar card primary-toolbar">
+      <div class="toolbar-group">
+        <button id="addRowBtn" class="button primary">+ Строка</button>
+        <button id="pasteBtn" class="button secondary" data-tip="Вставить диапазон из Excel или Google Таблиц">Вставить</button>
+        <label class="button secondary file-button">Импорт
+          <input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt">
+        </label>
+        <button id="downloadTemplateBtn" class="button secondary" data-tip="Готовый XLSX с правильными заголовками и примерами">Шаблон</button>
+        <button id="demoBtn" class="button ghost">Пример</button>
+      </div>
+      <div class="toolbar-group">
+        <label class="switch-line"><input id="autoCalcToggle" type="checkbox"><span>Авторасчёт</span></label>
+        <button id="calculateAllBtn" class="button accent">Рассчитать всё</button>
+        <button id="stopBtn" class="button danger hidden">Остановить</button>
+      </div>
+    </section>
+
+    <section class="status-card card">
+      <div class="status-row">
+        <div class="status-copy"><strong id="statusTitle">Готово к работе</strong><span id="statusDetails">Добавьте строки, вставьте данные или импортируйте файл.</span></div>
+        <div id="summaryCounters" class="counters"><span><b id="countTotal">0</b> строк</span><span><b id="countDone">0</b> готово</span><span><b id="countErrors">0</b> ошибок</span></div>
+      </div>
+      <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+    </section>
+
+    <section class="table-card card">
+      <div class="table-toolbar">
+        <div class="table-title"><h2>Данные и результаты</h2><span>Адрес определяется автоматически; внутренние коды скрыты.</span></div>
+        <div class="toolbar-group compact">
+          <button id="clearResultsBtn" class="button ghost">Очистить результаты</button>
+          <button id="clearAllBtn" class="button ghost danger-text">Очистить всё</button>
+        </div>
+      </div>
+      <div class="table-filter-bar" aria-label="Фильтры таблицы">
+        <label class="table-filter-search">Поиск по таблице<input id="tableSearchInput" type="search" placeholder="Адрес, ТК, тариф, ошибка…"></label>
+        <label>Статус<select id="tableStatusFilter">
+          <option value="all">Все строки</option>
+          <option value="not-calculated">Не рассчитано</option>
+          <option value="ready">Готово к расчёту</option>
+          <option value="loading">В работе</option>
+          <option value="done">Рассчитано</option>
+          <option value="errors">Все ошибки</option>
+          <option value="address-error">Адрес не распознан</option>
+          <option value="calculation-error">Ошибка расчёта</option>
+        </select></label>
+        <label>Сортировка<select id="tableSortSelect">
+          <option value="index">По порядку</option>
+          <option value="status">По статусу</option>
+          <option value="not-calculated">Сначала не рассчитано</option>
+          <option value="errors">Сначала ошибки</option>
+          <option value="done">Сначала готовые</option>
+        </select></label>
+        <span id="tableFilterCount" class="table-filter-count">Все строки</span>
+        <button id="resetTableFilterBtn" type="button" class="button ghost filter-reset hidden">Сбросить</button>
+      </div>
+      <div class="table-wrap">
+        <table id="dataTable">
+          <thead><tr>
+            <th class="sticky-col row-number">#</th><th>Откуда</th><th>Распознано</th><th>Куда</th><th>Распознано</th>
+            <th>Вес, кг</th><th>Мест</th><th>Длина</th><th>Ширина</th><th>Высота</th><th>Статус</th>
+            <th>Лучшая ТК</th><th>Тариф</th><th>Метод</th><th>Макс. срок</th><th>Цена</th><th>Вход</th><th>Скидка</th><th></th>
+          </tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="export-card card">
+      <div><h2>Результаты</h2><p>Просмотр, сравнение ТК, аналитика для продаж и многолистовая выгрузка.</p></div>
+      <div class="toolbar-group">
+        <button id="companyOverviewBtn" class="button secondary">Обзор и аналитика</button>
+        <button id="copyBtn" class="button secondary">Копировать</button>
+        <button id="downloadCsvBtn" class="button secondary">CSV</button>
+        <button id="downloadXlsxBtn" class="button primary">XLSX</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="settingsPanel" class="modal settings-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-settings></div>
+    <div class="modal-panel settings-panel">
+      <div class="modal-header">
+        <div><h2>Настройки</h2><p>Проекты, расчёт, экспорт, кэш и интерфейс.</p></div>
+        <div id="settingsProjectTabs" class="project-settings-tabs settings-header-project-tabs" aria-label="Проект для ввода доступа"></div>
+        <div class="modal-header-actions"><button class="icon-button" data-toggle-fullscreen data-target-modal="settingsPanel" data-tip="Развернуть на весь экран" aria-label="Развернуть">⛶</button><button class="icon-button" data-close-settings aria-label="Закрыть">×</button></div>
+      </div>
+      <div class="settings-layout">
+        <nav class="settings-nav">
+          <button class="settings-tab active" data-settings-tab="connections">Проекты</button>
+          <button class="settings-tab" data-settings-tab="calculation">Расчёт</button>
+          <button class="settings-tab" data-settings-tab="export">Выгрузка</button>
+          <button class="settings-tab" data-settings-tab="cache">Кэш</button>
+          <button class="settings-tab" data-settings-tab="interface">Интерфейс</button>
+          <button class="settings-tab" data-settings-tab="technical">Тех. информация</button>
+        </nav>
+        <div class="settings-content">
+          <section class="settings-pane active" data-settings-pane="connections">
+            <div class="pane-heading"><h3>Подключённые проекты</h3><p>У каждого проекта свои логин, пароль и контрагент. DaData используется общий.</p></div>
+            <div class="settings-project-note"><b>Проекты можно заполнить без закрытия настроек.</b><span>Переключайтесь между КД / ME / OPS здесь, вводите логин, пароль и клиента для каждого проекта, затем нажмите «Готово».</span></div>
+            <div class="settings-card">
+              <div class="field-label">Текущий проект <span class="help" data-tip="Проект определяет домен авторизации, справочник городов и калькулятор">?</span></div>
+              <div id="settingsProjectLabel" class="project-title"></div>
+              <label>Email<input id="emailInput" type="email" autocomplete="username" placeholder="example@mail.com"></label>
+              <label>Пароль
+                <div class="secret-input-wrap">
+                  <input id="passwordInput" type="password" autocomplete="current-password" placeholder="••••••••">
+                  <button type="button" class="secret-toggle" data-toggle-secret="passwordInput" aria-label="Показать пароль" aria-pressed="false">Показать</button>
+                </div>
+              </label>
+              <div class="inline-form"><label class="grow">ИНН клиента<input id="innInput" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="10 или 12 цифр"></label><button id="findClientBtn" class="button secondary align-bottom">Найти</button></div>
+              <div id="clientResult" class="client-result neutral">Контрагент не выбран</div>
+              <label class="switch-line save-secret hidden"><input id="projectEnabledToggle" type="checkbox" checked><span>Проект настроен и используется</span></label>
+            </div>
+            <div class="settings-card">
+              <label>Общий токен DaData <span class="help" data-tip="Один токен используется для распознавания адресов во всех проектах">?</span>
+                <div class="secret-input-wrap">
+                  <input id="dadataInput" type="password" autocomplete="off" placeholder="API-токен DaData">
+                  <button type="button" class="secret-toggle" data-toggle-secret="dadataInput" aria-label="Показать токен DaData" aria-pressed="false">Показать</button>
+                </div>
+              </label>
+              <label class="switch-line save-secret"><input id="savePasswordToggle" type="checkbox"><span>Сохранять пароли и токен на этом устройстве</span></label>
+            </div>
+          </section>
+
+          <section class="settings-pane" data-settings-pane="calculation">
+            <div class="pane-heading"><h3>Расчёт и нагрузка</h3><p>Безопасные значения уже выбраны по умолчанию.</p></div>
+            <div class="settings-grid two">
+              <label>Выбор лучшего тарифа<select id="bestMethodSelect"><option value="door">Только дверь-дверь</option><option value="all">Любой метод</option></select></label>
+              <label>Параллельных расчётов<select id="concurrencySelect"><option value="1">1 — бережно</option><option value="2">2</option><option value="3">3 — рекомендуется</option><option value="4">4</option><option value="5">5</option><option value="6">6 — быстрее</option></select></label>
+              <label>Задержка автопоиска<select id="debounceSelect"><option value="400">0,4 сек.</option><option value="650">0,65 сек.</option><option value="900">0,9 сек.</option><option value="1200">1,2 сек.</option></select></label>
+              <label>Ожидание калькулятора<select id="calcTimeoutSelect"><option value="60000">60 сек.</option><option value="90000">90 сек. — рекомендуется</option><option value="120000">120 сек.</option><option value="180000">180 сек.</option></select></label>
+              <label>Повторов после ошибки<select id="calcRetriesSelect"><option value="0">Не повторять</option><option value="1">1 повтор</option><option value="2">2 повтора</option><option value="3">3 повтора</option></select></label>
+            </div>
+            <div id="exclusionsSettingsCard" class="settings-card">
+              <h4>Не включать ТК в расчёты <span class="help" data-tip="Отмеченные ТК убираются из результата, аналитики и выбора лучшего тарифа. Список подтягивается из справочника партнёра и дополняется найденными ТК.">?</span></h4>
+              <p class="settings-note">По умолчанию выключены Достависта, Пешкарики, Dimex, FoxExpress, Яндекс Доставка, Global Delivery, TNT и UPS. Если партнёр добавит новую ТК, нажмите «Обновить список ТК» — она появится здесь и в расчётах будет распознана по справочнику.</p>
+              <div class="exclusions-toolbar">
+                <button type="button" id="refreshPartnerCompaniesBtn" class="button secondary mini">Обновить список ТК</button>
+                <button type="button" class="button ghost mini" data-exclusions-action="defaults">По умолчанию</button>
+                <button type="button" class="button ghost mini" data-exclusions-action="none">Включить все</button>
+                <span id="partnerCompaniesStatus" class="settings-note"></span>
+              </div>
+              <div id="exclusionsList" class="checkbox-grid"></div>
+            </div>
+          </section>
+
+          <section class="settings-pane" data-settings-pane="export">
+            <div class="pane-heading"><h3>Выгрузка</h3><p>По умолчанию включён короткий набор; служебные ID и внутренние поля удалены полностью.</p></div>
+            <label>Основной лист<select id="mainExportPresetSelect"><option value="compact">Краткая</option><option value="finance">Финансы</option><option value="full">Полная пользовательская</option><option value="custom">Своя</option></select></label>
+            <details class="fields-details"><summary>Поля основного листа <span id="mainFieldsCount"></span></summary><div class="fields-toolbar"><button type="button" class="button ghost mini" data-fields-action="main-all">Все</button><button type="button" class="button ghost mini" data-fields-action="main-none">Снять</button></div><div id="mainExportFields" class="field-selector"></div></details>
+            <label class="switch-line save-secret"><input id="exportMainCompanyColumnsToggle" type="checkbox"><span>Добавлять лучшие тарифы каждой ТК на основной лист</span></label>
+            <label>Тарифные листы<select id="tariffExportPresetSelect"><option value="compact">Краткая</option><option value="finance">Финансы</option><option value="logistics">Логистика</option><option value="full">Полная пользовательская</option><option value="custom">Своя</option></select></label>
+            <details class="fields-details"><summary>Поля тарифов <span id="tariffFieldsCount"></span></summary><div class="fields-toolbar"><button type="button" class="button ghost mini" data-fields-action="tariff-all">Все</button><button type="button" class="button ghost mini" data-fields-action="tariff-none">Снять</button></div><div id="tariffExportFields" class="field-selector"></div></details>
+            <div class="settings-grid two">
+              <label class="switch-line save-secret"><input id="exportCompanySheetsToggle" type="checkbox" checked><span>Отдельный лист каждой ТК</span></label>
+              <label class="switch-line save-secret"><input id="exportAnalyticsSheetToggle" type="checkbox"><span>Добавлять лист аналитики</span></label>
+              <label>Формат листов ТК<select id="companySheetLayoutSelect"><option value="wide">Запрос в строке</option><option value="long">Тариф в строке</option></select></label>
+            </div>
+          </section>
+
+          <section class="settings-pane" data-settings-pane="cache">
+            <div class="pane-heading"><h3>Кэш и сохранённая таблица</h3><p>Кэш ускоряет повторные расчёты и поиск адресов. Сохранённый ввод таблицы защищает данные при перезагрузке страницы.</p></div>
+            <div class="toolbar-group"><button id="refreshCacheStatsBtn" class="button secondary">Обновить статистику</button><button id="clearCacheBtn" class="button danger">Очистить всё</button></div>
+            <div id="cacheStatsGrid" class="cache-stats-grid"><div class="empty-state">Нажмите «Обновить статистику».</div></div>
+            <div class="cache-action-groups">
+              <div class="cache-action-group"><b>Расчёты</b><span>Ответы калькулятора по уже рассчитанным маршрутам и габаритам.</span><button class="button ghost" data-cache-clear="calculator">Очистить кэш калькулятора</button></div>
+              <div class="cache-action-group"><b>DaData</b><span>Подсказки и распознавание адресов.</span><button class="button ghost" data-cache-clear="dadata">Очистить кэш DaData</button></div>
+              <div class="cache-action-group"><b>Города ЛК</b><span>Соответствие DaData-адресов городам личного кабинета.</span><button class="button ghost" data-cache-clear="geo">Очистить кэш городов ЛК</button></div>
+              <div class="cache-action-group"><b>Личный кабинет</b><span>Токены, контрагенты и справочник транспортных компаний.</span><button class="button ghost" data-cache-clear="lk">Очистить кэш ЛК</button></div>
+              <div class="cache-action-group"><b>Ввод таблицы</b><span>Сохранённые строки, адреса и результаты, которые восстанавливаются после перезагрузки.</span><button class="button ghost danger-text" data-cache-clear="table-inputs">Очистить сохранённый ввод</button></div>
+            </div>
+          </section>
+
+          <section class="settings-pane" data-settings-pane="interface">
+            <div class="pane-heading"><h3>Интерфейс</h3><p>Средняя плотность соответствует текущему виду.</p></div>
+            <div class="settings-grid two">
+              <label>Тема<select id="themeSelect"><option value="system">Как в системе</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label>
+              <label>Плотность<select id="densitySelect"><option value="micro">Очень компактная</option><option value="compact">Компактная</option><option value="medium">Средняя — по умолчанию</option><option value="spacious">Просторная</option></select></label>
+              <label>Порядок колонок обзора <span class="help" data-tip="Меняет порядок дополнительных колонок только в расширенном обзоре по ТК">?</span><select id="overviewColumnOrderSelect"><option value="logistics">Логистика: груз сразу после маршрута</option><option value="sales">Продажи: цена перед грузом</option><option value="finance">Финансы: вход и розница перед грузом</option></select></label>
+              <label class="switch-line save-secret service-info-toggle"><input id="showServiceInfoToggle" type="checkbox"><span>Показывать сервисную информацию API <small>rateName, ratePrice, ratePricePercent, emptyTermText</small></span></label>
+            </div>
+          </section>
+
+          <section class="settings-pane" data-settings-pane="technical">
+            <div class="pane-heading"><h3>Техническая информация</h3><p>Служебная справка для проверки запросов, кэша и формул аналитики.</p></div>
+            <div class="settings-card technical-card">
+              <h4>Запросы, кэш и аналитика</h4>
+              <p id="runtimeLabel" class="settings-runtime-line">Определение режима…</p>
+              <p>Откройте подробное описание цепочки запросов, сроков хранения кэша и расчётных формул.</p>
+              <button id="openHelpFromSettingsBtn" class="button secondary">Открыть справку</button>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="button ghost" data-close-settings>Закрыть</button><button id="saveSettingsBtn" class="button primary">Готово</button></div>
+    </div>
+  </div>
+
+  <div id="pasteModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal></div><div class="modal-panel large"><div class="modal-header"><div><h2>Вставка данных</h2><p>Откуда, куда, вес, мест, длина, ширина, высота.</p></div><button class="icon-button" data-close-modal>×</button></div><textarea id="pasteArea" rows="12" placeholder="Москва\tСанкт-Петербург\t2,5\t1\t20\t15\t10"></textarea><div class="modal-actions"><label class="switch-line"><input id="pasteHasHeader" type="checkbox"><span>Первая строка — заголовки</span></label><div class="toolbar-group"><button id="pasteTemplateBtn" class="button secondary">Шаблон</button><button class="button ghost" data-close-modal>Отмена</button><button id="applyPasteBtn" class="button primary">Добавить</button></div></div></div>
+  </div>
+
+  <div id="confirmModal" class="modal confirm-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-confirm-cancel></div>
+    <div class="modal-panel confirm-panel">
+      <div class="modal-header">
+        <div><h2 id="confirmTitle">Подтверждение</h2><p id="confirmMessage"></p></div>
+      </div>
+      <div class="modal-actions">
+        <button id="confirmCancelBtn" type="button" class="button ghost" data-confirm-cancel>Отмена</button>
+        <button id="confirmOkBtn" type="button" class="button danger">Подтвердить</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ordersModal" class="modal orders-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-orders></div>
+    <div class="modal-panel extra-large orders-panel">
+      <div class="modal-header">
+        <div><h2>Массовое создание заказов</h2><p>Берём рассчитанные строки, дополняем контакты и услуги, затем создаём заявки в ЛК.</p></div>
+        <div class="modal-header-actions"><button class="icon-button" data-toggle-fullscreen data-target-modal="ordersModal" data-tip="Развернуть на весь экран" aria-label="Развернуть">⛶</button><button class="icon-button" data-close-orders aria-label="Закрыть">×</button></div>
+      </div>
+      <div class="orders-layout">
+        <aside class="orders-defaults">
+          <h3>Импорт заказов</h3>
+          <label class="file-drop">
+            <input id="orderFileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt">
+            <span>Загрузить шаблон заказов</span>
+          </label>
+          <div class="order-default-schedule">
+            <label>Дата сбора<input id="orderDefaultTakeDate" type="date"></label>
+            <div class="order-time-grid">
+              <label>Сбор с<input id="orderDefaultTimeFrom" type="time" step="1800" value="09:00"></label>
+              <label>Сбор до<input id="orderDefaultTimeTo" type="time" step="1800" value="18:00"></label>
+            </div>
+            <button id="orderApplyScheduleBtn" type="button" class="button secondary">Применить ко всем</button>
+          </div>
+          <p class="settings-note">Импорт берёт блоки отправителя, получателя, груза и доставки. После импорта рассчитайте строки, затем выберите тариф и услуги в карточках заказа.</p>
+          <p class="settings-note">Способ оплаты и плательщик не отправляются: ЛК применяет значения по умолчанию.</p>
+          <p class="settings-note">Поля ТК показываются автоматически: ДЛ/Байкал/ПЭК — ИНН или паспорт, Достависта — тип транспорта.</p>
+        </aside>
+        <section class="orders-workspace">
+          <div class="orders-toolbar">
+            <div id="ordersSummary" class="muted">Нет рассчитанных строк.</div>
+            <div class="toolbar-group"><div id="ordersPager" class="orders-pager"></div><button id="createOrdersBtn" class="button primary">Создать заказы</button></div>
+          </div>
+          <div id="orderRows" class="order-rows"></div>
+          <div class="orders-result">
+            <h3>Созданные заказы</h3>
+            <div id="orderResultList" class="order-result-list"><div class="empty-state">После отправки здесь появятся номера заявок и статусы.</div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="tariffsModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-tariffs></div><div class="modal-panel extra-large"><div class="modal-header"><div><h2>Все тарифы строки</h2><p id="tariffsSubtitle"></p></div><div class="modal-header-actions"><button class="icon-button" data-toggle-fullscreen data-target-modal="tariffsModal" data-tip="Развернуть на весь экран" aria-label="Развернуть">⛶</button><button class="icon-button" data-close-tariffs aria-label="Закрыть">×</button></div></div>
+      <div class="tariff-dashboard"><div class="tariff-metrics"><div class="metric"><span>Показано</span><b id="tariffCountMetric">0</b></div><div class="metric"><span>Минимальная цена</span><b id="tariffMinPriceMetric">—</b></div><div class="metric"><span>Лучший макс. срок</span><b id="tariffFastestMetric">—</b></div></div><div class="tariff-actions toolbar-group"><label class="switch-line compact-switch"><input id="advancedTariffViewToggle" type="checkbox"><span>Больше колонок</span></label><button id="copyTariffsBtn" class="button secondary">Копировать</button><button id="downloadTariffsCsvBtn" class="button secondary">CSV</button><button id="downloadTariffsXlsxBtn" class="button primary">XLSX</button></div></div>
+      <div class="tariff-filters tariff-filters-rich facet-filter-grid">
+        <label class="filter-search-wide">Поиск<input id="tariffSearchInput" type="search" placeholder="ТК, тариф, срочность или тип доставки…"></label>
+        <select id="tariffCompanyFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
+        <select id="tariffUrgencyFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
+        <select id="tariffNameFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
+        <select id="tariffMethodFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
+        <details id="tariffCompanyFacetDetails" class="choice-filter"><summary><span>ТК</span><b id="tariffCompanyFacetSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти ТК…" data-choice-search-target="tariffCompanyFacetOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-tariff-filter-action="company-all">Все</button><button type="button" class="button mini ghost" data-tariff-filter-action="company-none">Снять</button><button type="button" class="button mini ghost" data-tariff-filter-action="company-invert">Инвертировать</button></div><div id="tariffCompanyFacetOptions" class="choice-filter-options"></div></div></details>
+        <details id="tariffTypeFacetDetails" class="choice-filter"><summary><span>Тип доставки</span><b id="tariffTypeFacetSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти тип…" data-choice-search-target="tariffTypeFacetOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-tariff-filter-action="type-all">Все</button><button type="button" class="button mini ghost" data-tariff-filter-action="type-none">Снять</button><button type="button" class="button mini ghost" data-tariff-filter-action="type-invert">Инвертировать</button></div><div id="tariffTypeFacetOptions" class="choice-filter-options"></div></div></details>
+        <details id="tariffUrgencyFacetDetails" class="choice-filter"><summary><span>Срочность</span><b id="tariffUrgencyFacetSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти срочность…" data-choice-search-target="tariffUrgencyFacetOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-tariff-filter-action="urgency-all">Все</button><button type="button" class="button mini ghost" data-tariff-filter-action="urgency-none">Снять</button><button type="button" class="button mini ghost" data-tariff-filter-action="urgency-invert">Инвертировать</button></div><div id="tariffUrgencyFacetOptions" class="choice-filter-options"></div></div></details>
+        <details id="tariffNameFacetDetails" class="choice-filter"><summary><span>Тарифы</span><b id="tariffNameFacetSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти тариф…" data-choice-search-target="tariffNameFacetOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-tariff-filter-action="tariff-all">Все</button><button type="button" class="button mini ghost" data-tariff-filter-action="tariff-none">Снять</button><button type="button" class="button mini ghost" data-tariff-filter-action="tariff-invert">Инвертировать</button></div><div id="tariffNameFacetOptions" class="choice-filter-options"></div></div></details>
+        <label>Цена от<input id="tariffPriceMin" type="number" min="0" step="1"></label><label>Цена до<input id="tariffPriceMax" type="number" min="0" step="1"></label><label>Макс. срок до<input id="tariffPeriodMax" type="number" min="0" step="1" placeholder="Без срока скрываются"></label><button id="resetTariffFiltersBtn" class="button ghost filter-reset">Сбросить</button>
+      </div>
+      <div class="tariffs-wrap"><table class="tariffs-table"><thead id="tariffsHead"></thead><tbody id="tariffsBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <div id="companyModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-company></div><div class="modal-panel extra-large analytics-modal"><div class="modal-header"><div><h2>Обзор и аналитика продаж по ТК</h2><p>Тарифы, графики, ценовые риски и рекомендации для менеджера только по текущим расчётам.</p></div><div class="modal-header-actions"><button class="icon-button" data-toggle-fullscreen data-target-modal="companyModal" data-tip="Развернуть на весь экран" aria-label="Развернуть">⛶</button><button class="icon-button" data-close-company aria-label="Закрыть">×</button></div></div>
+      <nav class="subtabs"><button class="subtab active" data-company-view="tariffs">Тарифы</button><button class="subtab" data-company-view="compare">Графики сравнения</button><button class="subtab-help" data-analytics-help="comparison" aria-label="Справка по графикам сравнения">?</button><button class="subtab" data-company-view="manager">Рекомендации продажам</button><button class="subtab-help" data-analytics-help="manager" aria-label="Справка по рекомендациям">?</button><button class="subtab" data-company-view="matrix">Матрица цен</button><button class="subtab-help" data-analytics-help="matrix" aria-label="Справка по матрице цен">?</button></nav>
+      <div class="analytics-shared-filters">
+        <div class="analytics-shared-filter-head"><div><b>Общая выборка аналитики</b><span>Эти фильтры применяются одинаково к тарифам, графикам и аналитической таблице.</span></div><span id="analyticsSharedFilterStatus" class="selection-count"></span><button id="toggleAnalyticsFiltersBtn" class="button mini secondary" type="button">Свернуть фильтры</button></div>
+        <div class="tariff-filters company-filters company-filters-rich facet-filter-grid">
+          <select id="companySelect" class="hidden" aria-hidden="true"><option value=""></option></select>
+          <select id="companyRouteFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
+          <select id="companyUrgencyFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
+          <select id="companyMethodFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
+          <label class="filter-search-wide">Поиск<input id="companySearchInput" type="search" placeholder="ТК, направление, срочность, тариф или тип доставки…"></label>
+          <details id="companyCompanyFilterDetails" class="choice-filter"><summary><span>ТК</span><b id="companyCompanyFilterSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти ТК…" data-choice-search-target="companyCompanyFilterOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-company-filter-action="company-all">Все</button><button type="button" class="button mini ghost" data-company-filter-action="company-none">Снять</button><button type="button" class="button mini ghost" data-company-filter-action="company-invert">Инвертировать</button></div><div id="companyCompanyFilterOptions" class="choice-filter-options"></div></div></details>
+          <details id="companyTypeFilterDetails" class="choice-filter"><summary><span>Тип доставки</span><b id="companyTypeFilterSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти тип…" data-choice-search-target="companyTypeFilterOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-company-filter-action="type-all">Все</button><button type="button" class="button mini ghost" data-company-filter-action="type-none">Снять</button><button type="button" class="button mini ghost" data-company-filter-action="type-invert">Инвертировать</button></div><div id="companyTypeFilterOptions" class="choice-filter-options"></div></div></details>
+          <details id="companyUrgencyFilterDetails" class="choice-filter"><summary><span>Срочность</span><b id="companyUrgencyFilterSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти срочность…" data-choice-search-target="companyUrgencyFilterOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-company-filter-action="urgency-all">Все</button><button type="button" class="button mini ghost" data-company-filter-action="urgency-none">Снять</button><button type="button" class="button mini ghost" data-company-filter-action="urgency-invert">Инвертировать</button></div><div id="companyUrgencyFilterOptions" class="choice-filter-options"></div></div></details>
+          <details id="companyTariffFilterDetails" class="choice-filter"><summary><span>Тарифы</span><b id="companyTariffFilterSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти тариф…" data-choice-search-target="companyTariffFilterOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-company-filter-action="tariff-all">Все</button><button type="button" class="button mini ghost" data-company-filter-action="tariff-none">Снять</button><button type="button" class="button mini ghost" data-company-filter-action="tariff-invert">Инвертировать</button></div><div id="companyTariffFilterOptions" class="choice-filter-options"></div></div></details>
+          <details id="companyRouteFilterDetails" class="choice-filter"><summary><span>Направления</span><b id="companyRouteFilterSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти направление…" data-choice-search-target="companyRouteFilterOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-company-filter-action="route-all">Все</button><button type="button" class="button mini ghost" data-company-filter-action="route-none">Снять</button><button type="button" class="button mini ghost" data-company-filter-action="route-invert">Инвертировать</button></div><div id="companyRouteFilterOptions" class="choice-filter-options"></div></div></details>
+          <details id="companyCargoFilterDetails" class="choice-filter"><summary><span>Груз</span><b id="companyCargoFilterSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти вес или габариты…" data-choice-search-target="companyCargoFilterOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-company-filter-action="cargo-all">Все</button><button type="button" class="button mini ghost" data-company-filter-action="cargo-none">Снять</button><button type="button" class="button mini ghost" data-company-filter-action="cargo-invert">Инвертировать</button></div><div id="companyCargoFilterOptions" class="choice-filter-options"></div></div></details>
+          <label>Цена от<input id="companyPriceMin" type="number" min="0"></label><label>Цена до<input id="companyPriceMax" type="number" min="0"></label><label>Макс. срок до <span class="help" data-tip="При заполненном фильтре тарифы со сроком «По запросу» скрываются">?</span><input id="companyPeriodMax" type="number" min="0"></label><button id="resetCompanyFiltersBtn" class="button ghost filter-reset">Сбросить</button>
+        </div>
+      </div>
+
+      <section class="company-view-pane active" data-company-pane="tariffs">
+        <div id="companyCards" class="company-cards"></div>
+        <div class="tariff-dashboard"><div class="tariff-metrics"><div class="metric"><span>Показано</span><b id="companyCountMetric">0</b></div><div class="metric"><span>Запросов</span><b id="companyRequestsMetric">0</b></div><div class="metric"><span>Минимальная цена</span><b id="companyMinPriceMetric">—</b></div><div class="metric"><span>Средняя цена</span><b id="companyAvgPriceMetric">—</b></div><div class="metric"><span>Лучший макс. срок</span><b id="companyFastestMetric">—</b></div></div><div class="tariff-actions toolbar-group"><label class="switch-line compact-switch"><input id="advancedCompanyViewToggle" type="checkbox"><span>Больше колонок</span></label><button id="copyCompanyBtn" class="button secondary">Копировать</button><button id="downloadCompanyCsvBtn" class="button secondary">CSV</button><button id="downloadCompanyXlsxBtn" class="button primary">XLSX</button></div></div>
+        <div class="tariffs-wrap"><table id="companyTariffsTable" class="tariffs-table company-table"><thead id="companyTariffsHead"></thead><tbody id="companyTariffsBody"></tbody></table></div>
+      </section>
+
+      <section class="company-view-pane" data-company-pane="compare">
+        <div class="analytics-controls analytics-controls-wide">
+          <label>Пресет<select id="comparisonPresetSelect"><option value="sale">Продажа: конкурентная цена</option><option value="discount">Продажа: допустимая скидка</option><option value="margin">Продажа: маржинальность</option><option value="logistics">Логистика: цена и срок</option><option value="custom">Свой набор</option></select></label>
+          <label class="hidden" aria-hidden="true">Направление<select id="comparisonRouteSelect"><option value="">Все направления</option></select></label>
+          <label class="hidden" aria-hidden="true">Тип доставки<select id="comparisonMethodSelect"></select></label>
+          <label>Правило внутри выбранных тарифов <span class="help" data-tip="Если для ТК отмечено несколько тарифов, это правило выбирает один из них отдельно для каждого маршрута.">?</span><select id="comparisonTariffModeSelect"><option value="cheapest">Минимальная цена</option><option value="fastest">Минимальный максимальный срок</option><option value="pricePeriod">Сначала цена, затем срок</option><option value="periodPrice">Сначала срок, затем цена</option></select></label>
+          <label class="hidden" aria-hidden="true">Макс. срок до<input id="comparisonPeriodMax" type="number" min="1" placeholder="Без ограничения"></label>
+          <label>Ограничение цены <span class="help" data-tip="Нижняя граница рекомендации: сумма Минимум ЛК, ₽; если её нет — вход × minPricePercent / 100; либо собственная маржа от входа.">?</span><select id="comparisonFloorModeSelect"><option value="strict">Строже: минимум ЛК или своя маржа</option><option value="lkPrice">Минимум ЛК: сумма или процент</option><option value="ownMargin">Своя минимальная маржа от входа</option></select></label>
+          <label>Минимальная маржа, % <span class="help" data-tip="Минимальная доля маржи в цене продажи. Используется в режимах со своей маржой и в строгом режиме.">?</span><input id="comparisonFloorPercentInput" type="number" min="0" max="99" value="10"></label>
+          <label>Дешевле рынка, % <span class="help" data-tip="Насколько рекомендуемая цена должна быть ниже лучшей цены другой выбранной ТК на том же маршруте и типе доставки.">?</span><input id="salesBeatMarketInput" type="number" min="0" max="30" value="1"></label>
+          <div class="analytics-auto-status align-bottom updated" data-tip="После короткой паузы графики автоматически перестраиваются по текущим фильтрам и выбранным тарифам. После обновления появится уведомление."><span class="status-dot"></span><div><b>Автообновление</b><small id="comparisonUpdatedAt">По текущим расчётам</small></div><button id="refreshComparisonBtn" type="button" class="button mini secondary analytics-refresh-button">Обновить</button></div>
+        </div>
+        <details class="metrics-picker"><summary>Показатели сравнения <span id="comparisonMetricCount"></span></summary><div id="comparisonMetricFields" class="metric-checkboxes"></div></details>
+        <div class="analytics-actions"><div id="comparisonScopeNote" class="muted"></div><div class="toolbar-group"><button id="copyComparisonBtn" class="button secondary">Копировать</button><button id="downloadComparisonXlsxBtn" class="button primary">XLSX</button></div></div>
+        <div id="comparisonCharts" class="comparison-charts"></div>
+      </section>
+
+      <section class="company-view-pane" data-company-pane="manager">
+        <div class="analytics-controls manager-controls">
+          <label class="hidden" aria-hidden="true">Вид таблицы <span class="help" data-tip="Матрица вынесена в отдельную вкладку">?</span><select id="managerViewSelect"><option value="recommendations">Рекомендации по моим расчётам</option><option value="matrix">Матрица цен и процентов</option></select></label>
+          <label class="hidden" aria-hidden="true">Направление<select id="managerRouteFilter"><option value="">Все направления</option></select></label>
+          <label class="hidden" aria-hidden="true">Тип доставки<select id="managerMethodFilter"></select></label>
+          <label>Правило внутри выбранных тарифов <span class="help" data-tip="Если для ТК выбрано несколько тарифов, правило определяет, какой тариф брать на каждом маршруте.">?</span><select id="managerTariffModeSelect"><option value="cheapest">Минимальная цена</option><option value="fastest">Минимальный максимальный срок</option><option value="pricePeriod">Сначала цена, затем срок</option><option value="periodPrice">Сначала срок, затем цена</option></select></label>
+          <label class="hidden" aria-hidden="true">Макс. срок до<input id="managerPeriodMax" type="number" min="1" placeholder="Без ограничения"></label>
+          <label id="managerCompanyFilterLabel" class="hidden" aria-hidden="true">ТК<select id="managerCompanyFilter"><option value="">Все ТК</option></select></label>
+          <label id="managerBaseCompanyLabel" class="hidden">База процентов <span class="help" data-tip="Процент = (цена ТК − базовая цена) / базовая цена × 100">?</span><select id="managerBaseCompanyFilter"><option value="cheapest">Самая низкая цена в строке</option></select></label>
+          <label id="managerPresetLabel">Сценарий продажи <span class="help" data-tip="Готовые правила меняют целевое преимущество и нижнюю границу. Любой параметр можно изменить вручную.">?</span><select id="managerPresetSelect"><option value="custom">Свои настройки</option><option value="balance">Баланс цены и маржи</option><option value="close">Закрыть сделку</option><option value="margin">Защитить маржу</option><option value="lk">Не ниже ограничения ЛК</option></select></label>
+          <label id="managerFloorModeLabel">Ограничение цены <span class="help" data-tip="Минимальная цена для рекомендации: сумма Минимум ЛК, ₽; если её нет — вход × minPricePercent / 100; либо собственная маржа от входа.">?</span><select id="managerFloorModeSelect"><option value="strict">Строже: минимум ЛК или своя маржа</option><option value="lkPrice">Минимум ЛК: сумма или процент</option><option value="ownMargin">Своя минимальная маржа от входа</option></select></label>
+          <label id="managerFloorPercentLabel">Минимальная маржа, % <span class="help" data-tip="Минимальная доля маржи в цене продажи. Применяется, когда выбран режим со своей маржой или строгий режим.">?</span><input id="managerFloorPercentInput" type="number" min="0" max="99" value="10"></label>
+          <label id="managerBeatMarketLabel">Дешевле рынка, % <span class="help" data-tip="Целевое преимущество относительно лучшей цены другой выбранной ТК на том же маршруте.">?</span><input id="managerBeatMarketInput" type="number" min="0" max="30" value="1"></label>
+          <div class="analytics-auto-status align-bottom updated" data-tip="После короткой паузы таблица автоматически пересчитывается по текущим расчётам, фильтрам и выбранным тарифам. После обновления появится уведомление."><span class="status-dot"></span><div><b>Автообновление</b><small id="managerUpdatedAt">По текущим расчётам</small></div><button id="refreshManagerBtn" type="button" class="button mini secondary analytics-refresh-button">Обновить</button></div>
+          <div class="toolbar-group align-bottom"><button id="copyManagerBtn" class="button secondary">Копировать</button><button id="downloadManagerXlsxBtn" class="button primary">XLSX</button></div>
+        </div>
+        <div class="manager-summary" id="managerSummary"></div>
+        <div class="tariffs-wrap"><table id="managerTable" class="tariffs-table manager-table"><thead id="managerTableHead"></thead><tbody id="managerTableBody"></tbody></table></div>
+      </section>
+
+      <section class="company-view-pane" data-company-pane="matrix">
+        <div class="analytics-controls matrix-controls">
+          <label>Правило внутри выбранных тарифов <span class="help" data-tip="Если для ТК выбрано несколько тарифов, правило определяет, какой тариф брать на каждом маршруте.">?</span><select id="matrixTariffModeSelect"><option value="cheapest">Минимальная цена</option><option value="fastest">Минимальный максимальный срок</option><option value="pricePeriod">Сначала цена, затем срок</option><option value="periodPrice">Сначала срок, затем цена</option></select></label>
+          <label>Тип доставки для матрицы<select id="matrixMethodSelect"><option value="">Все типы доставки</option></select></label>
+          <label>База процентов <span class="help" data-tip="Процент = (цена ТК − базовая цена) / базовая цена × 100">?</span><select id="matrixBaseCompanyFilter"><option value="cheapest">Самая низкая цена в строке</option></select></label>
+          <label>Скидка в матрице <span class="help" data-tip="Текущая скидка: для КД от розницы, для ME и OPS от цены без скидки. Активная скидка берётся из ответа ЛК.">?</span><select id="matrixDiscountModeSelect"><option value="">Не показывать</option><option value="current">Текущая скидка</option><option value="active">Активная скидка</option></select></label>
+          <div class="analytics-auto-status align-bottom updated" data-tip="Матрица перестраивается по общей выборке аналитики."><span class="status-dot"></span><div><b>По общей выборке</b><small id="matrixUpdatedAt">По текущим расчётам</small></div><button id="refreshMatrixBtn" type="button" class="button mini secondary analytics-refresh-button">Обновить</button></div>
+          <div class="toolbar-group align-bottom"><button id="copyMatrixBtn" class="button secondary">Копировать</button><button id="downloadMatrixXlsxBtn" class="button primary">XLSX</button></div>
+        </div>
+        <div class="manager-summary" id="matrixSummary"></div>
+        <div class="tariffs-wrap"><table id="matrixTable" class="tariffs-table manager-table"><thead id="matrixTableHead"></thead><tbody id="matrixTableBody"></tbody></table></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="analyticsHelpModal" class="modal analytics-help-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-analytics-help></div>
+    <div class="modal-panel analytics-help-panel">
+      <div class="modal-header">
+        <div><h2 id="analyticsHelpTitle">Справка</h2><p id="analyticsHelpLead"></p></div>
+        <div class="modal-header-actions"><button class="icon-button" data-close-analytics-help aria-label="Закрыть">×</button></div>
+      </div>
+      <div id="analyticsHelpContent" class="analytics-help-content"></div>
+    </div>
+  </div>
+
+  <div id="helpModal" class="modal help-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-help></div>
+    <div class="modal-panel extra-large implementation-panel">
+      <div class="modal-header">
+        <div><h2>Как начать расчёт</h2><p>Короткая инструкция для пользователя: от выбора проекта до выгрузки результата.</p></div>
+        <div class="modal-header-actions"><button class="icon-button" data-toggle-fullscreen data-target-modal="helpModal" data-tip="Развернуть на весь экран" aria-label="Развернуть">⛶</button><button class="icon-button" data-close-help aria-label="Закрыть">×</button></div>
+      </div>
+      <div class="implementation-content">
+        <section class="implementation-hero">
+          <div><span>1</span><b>Проект</b><p>Выберите КД, M1 или OPS в шапке.</p></div>
+          <div><span>2</span><b>Клиент</b><p>Введите ИНН и нажмите «Найти».</p></div>
+          <div><span>3</span><b>Строки</b><p>Добавьте адреса и параметры груза.</p></div>
+          <div><span>4</span><b>Результат</b><p>Нажмите «Рассчитать всё» и скачайте XLSX.</p></div>
+        </section>
+
+        <details open class="implementation-section"><summary>Порядок действий для первого расчёта</summary>
+          <div class="formula-list">
+            <p><b>1. Выберите проект</b> в левом переключателе шапки: КД, M1 или OPS. У каждого проекта свои логин, пароль, клиент и набор тарифов.</p>
+            <p><b>2. Проверьте доступ</b> через popup расширения или кнопку «Настройки». После сохранения доступ должен быть проверен, иначе расчёт будет заблокирован.</p>
+            <p><b>3. Выберите клиента</b>: введите ИНН в шапке и нажмите «Найти». Если клиент не найден, проверьте ИНН и выбранный проект.</p>
+            <p><b>4. Добавьте направления</b>: нажмите «+ Строка», вставьте таблицу из Excel или загрузите файл через «Импорт».</p>
+            <p><b>5. Заполните груз</b>: вес, количество мест, длину, ширину и высоту. Вес 0 автоматически считается как 0,1 кг.</p>
+            <p><b>6. Запустите расчёт</b>: нажмите «Рассчитать всё». Если включён авторасчёт, строки будут пересчитываться после изменения адреса или груза.</p>
+            <p><b>7. Проверьте ошибки</b> фильтром «Статус». Обычно нужно поправить город, адрес или параметры груза.</p>
+            <p><b>8. Сохраните результат</b>: используйте «XLSX», «CSV» или «Копировать». Для создания заказов откройте отдельный инструмент «Создание заказов» из popup.</p>
+          </div>
+        </details>
+
+        <details class="implementation-section"><summary>Какие запросы выполняются</summary>
+          <div class="implementation-table-wrap"><table class="implementation-table"><thead><tr><th>Этап</th><th>Запрос</th><th>Что передаём</th><th>Что используем</th></tr></thead><tbody>
+            <tr><td>Авторизация</td><td><code>/api/auth/getToken</code></td><td>Email и пароль выбранного проекта</td><td>Временный authToken</td></tr>
+            <tr><td>Контрагент</td><td><code>/api/user/list</code></td><td>authToken и ИНН</td><td>ID и отображаемое имя контрагента</td></tr>
+            <tr><td>Распознавание</td><td><code>DaData suggest/address</code></td><td>Строка адреса и общий токен DaData</td><td>Нормализованный адрес и FIAS города/поселения</td></tr>
+            <tr><td>Город проекта</td><td><code>/ajax/autocompleteCseGeoObject</code></td><td>FIAS ID</td><td>ID и название города в КД, ME или OPS</td></tr>
+            <tr><td>Калькулятор</td><td><code>/api/cse/calc</code></td><td>Города, груз, контрагент и authToken</td><td>Тарифы, цены, максимальный срок, услуги и возврат; даты сбора и доставки не отображаются</td></tr>
+          </tbody></table></div>
+        </details>
+
+        <details class="implementation-section"><summary>Что и сколько хранится в кэше</summary>
+          <div class="implementation-table-wrap"><table class="implementation-table"><thead><tr><th>Данные</th><th>Где</th><th>Срок</th><th>Зачем</th></tr></thead><tbody>
+            <tr><td>Готовое распознавание адреса</td><td>IndexedDB браузера</td><td>7 дней</td><td>Не повторять цепочку DaData → FIAS → город проекта</td></tr>
+            <tr><td>Готовый расчёт строки</td><td>IndexedDB браузера</td><td>2 дня</td><td>Мгновенно восстановить результат после обновления страницы</td></tr>
+            <tr><td>authToken</td><td>Память фонового процесса</td><td>38 минут</td><td>Не авторизовываться перед каждой строкой</td></tr>
+            <tr><td>Контрагент по ИНН</td><td>Память фонового процесса</td><td>1 час</td><td>Не повторять поиск одного клиента</td></tr>
+            <tr><td>Ответ DaData</td><td>Память фонового процесса</td><td>7 дней</td><td>Не расходовать лимит DaData на одинаковые адреса</td></tr>
+            <tr><td>FIAS → город проекта</td><td>Память фонового процесса</td><td>7 дней</td><td>Не повторять поиск города отдельно в каждом проекте</td></tr>
+            <tr><td>Ответ калькулятора</td><td>Память фонового процесса</td><td>2 дня</td><td>Дедупликация и повторное использование идентичного расчёта</td></tr>
+          </tbody></table></div>
+          <p class="implementation-note">Ключ расчёта включает проект, контрагента, оба города, тип груза, вес, количество мест, габариты, режим доставки и исключённые ТК. Контрагент входит в ключ обязательно, потому что клиентские цены и скидки могут отличаться. Поэтому разные запросы не смешиваются. Кнопка «Пересчитать» обходит оба уровня кэша.</p>
+        </details>
+
+        <details class="implementation-section"><summary>Разделение проектов</summary>
+          <p>КД, M1 Express и OPSPost имеют отдельные домены, логины, пароли, контрагентов, результаты и кэш городов. Общим остаётся только токен DaData. Для КД тарифы показываются в привычном порядке по ТК. Для ME и OPS ответ группируется по срочности, затем по максимальному сроку и цене.</p>
+        </details>
+
+        <details class="implementation-section"><summary>Нагрузка, таймауты и повторы</summary>
+          <p>Одновременно запускается от 1 до 6 расчётов. Одинаковые активные запросы объединяются в один. Таймаут по умолчанию — 90 секунд. После таймаута, HTTP 429 или ошибки 5xx выполняется до двух повторов с увеличивающейся задержкой и небольшим случайным сдвигом. Остановка прекращает запуск новых строк, но не обрывает уже отправленный запрос.</p>
+        </details>
+
+        <details class="implementation-section"><summary>Как выбирается лучший тариф</summary>
+          <p>Сначала применяется режим проекта: нужный тип доставки либо все типы. Затем исключаются тарифы с ошибкой, нулевой ценой, системные исключения проекта и ТК, отмеченные пользователем. Из оставшихся выбирается минимальная цена. Если максимальный срок равен 0, пустой или отсутствует, показывается «По запросу».</p>
+        </details>
+
+        <details class="implementation-section"><summary>Формулы аналитики и скидок</summary>
+          <div class="formula-list">
+            <p><b>Маржа, ₽</b> — разница между ценой клиента и входом. Если вход недоступен, показатель не рассчитывается.</p>
+            <p><b>Маржа, %</b> — доля маржи в цене клиента.</p>
+            <p><b>Персональная скидка клиента</b> — дополнительная скидка конкретного клиента. 0% означает отсутствие дополнительной персональной скидки; активная скидка ЛК при этом может быть ненулевой.</p>
+            <p><b>Скидка от розницы</b> — разница между розничной ценой и ценой клиента, когда розница доступна.</p>
+            <p><b>Отклонение от рынка</b> показывает, насколько предложение дороже или дешевле лучшей выбранной альтернативы на том же маршруте.</p>
+            <p><b>Граница по марже</b> — минимальная цена продажи, сохраняющая выбранную маржу относительно входа.</p>
+            <p><b>Эффективная нижняя граница</b> — самое строгое из доступных ограничений ЛК и пользовательского правила.</p>
+            <p><b>Рекомендованная цена</b> = цена немного ниже лучшей другой ТК, но не ниже эффективной границы. Если текущая цена уже ниже границы, показывается необходимость повышения.</p>
+            <p><b>Запас для скидки</b> — сколько можно снизить текущую цену, не опускаясь ниже выбранной границы.</p>
+            <p><b>Покрытие</b> = маршруты с предложением ТК / все маршруты выборки × 100.</p>
+            <p><b>Доля лучших цен</b> = маршруты, где ТК дала минимум / маршруты с предложением ТК × 100.</p>
+          </div>
+          <p class="implementation-note">Рекомендации являются расчётной подсказкой. Перед предоставлением скидки сотрудник проверяет коммерческие условия и ограничения тарифа.</p>
+        </details>
+
+        <details class="implementation-section"><summary>Безопасность и хранение учётных данных</summary>
+          <p>Пароли и токен DaData не сохраняются постоянно, пока пользователь явно не включит соответствующую настройку. При включении они хранятся локально в профиле браузера и не отправляются никуда, кроме выбранных API. В XLSX и CSV не попадают пароли, токены, FIAS-коды и внутренние ID городов.</p>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+  <script src="vendor/xlsx.full.min.js"></script><script src="bridge.js"></script><script src="app.js"></script>
+</body>
+</html>
