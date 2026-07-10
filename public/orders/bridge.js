@@ -81,6 +81,11 @@
   ensureStorageShim();
 
   const isExtension = Boolean(globalThis.chrome && chrome.runtime && chrome.runtime.id);
+  const LOCAL_ENDPOINTS = {
+    auth: '/api/auth/login', deliveryCompanies: '/api/reference/delivery-companies', searchUser: '/api/clients/search',
+    resolveAddress: '/api/addresses/resolve', calculate: '/api/tariffs/calculate', createOrder: '/api/orders/create',
+    cancelOrder: '/api/orders/cancel', clearCache: '/api/cache/clear', calculationCacheStatus: '/api/cache/status'
+  };
 
   async function extensionRpc(action, payload) {
     return new Promise((resolve, reject) => {
@@ -110,10 +115,17 @@
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 360000);
     try {
-      const response = await fetch('/api/rpc', {
+      if (action === 'ping') {
+        const response = await fetch('/api/info', { cache: 'no-store', signal: controller.signal });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || body.ok === false) throw new Error(body.error || `Ошибка локального сервера: ${response.status}`);
+        return body.data;
+      }
+      const endpoint = LOCAL_ENDPOINTS[action];
+      const response = await fetch(endpoint || '/api/rpc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, payload }),
+        body: JSON.stringify(endpoint ? payload : { action, payload }),
         signal: controller.signal
       });
       const body = await response.json().catch(() => ({}));

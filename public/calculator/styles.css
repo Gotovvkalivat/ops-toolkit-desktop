@@ -38,11 +38,11 @@
   --primary-shadow: rgba(175,100,0,.24);
 }
 :root[data-project="me"] {
-  --primary: #c60707;
-  --primary-dark: #930505;
+  --primary: #555b66;
+  --primary-dark: #3f444c;
   --primary-contrast: #ffffff;
-  --primary-ring: rgba(198,7,7,.14);
-  --primary-shadow: rgba(198,7,7,.22);
+  --primary-ring: rgba(85,91,102,.16);
+  --primary-shadow: rgba(63,68,76,.24);
 }
 * { box-sizing: border-box; }
 html, body { min-height: 100%; }
@@ -559,6 +559,9 @@ td input.invalid { border-color: var(--danger); background: #fff7f7; }
 .checkbox-grid input { width: auto; margin: 0; }
 .exclusions-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0; }
 .exclusions-toolbar .settings-note { margin:0; }
+.best-exclusions-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.best-exclusions-block .exclusions-toolbar { justify-content: space-between; }
+.best-exclusions-block h4 { margin: 0; }
 .drawer-footer { padding: 16px 20px 24px; }
 .modal-panel {
   position: relative;

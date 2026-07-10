@@ -80,6 +80,23 @@ async function handleRpc(request, response) {
   }
 }
 
+const explicitApiRoutes = {
+  '/api/auth/login': 'auth', '/api/reference/delivery-companies': 'deliveryCompanies', '/api/clients/search': 'searchUser',
+  '/api/addresses/resolve': 'resolveAddress', '/api/tariffs/calculate': 'calculate', '/api/orders/create': 'createOrder',
+  '/api/orders/cancel': 'cancelOrder', '/api/cache/clear': 'clearCache', '/api/cache/status': 'calculationCacheStatus'
+};
+
+async function handleApiAction(request, response, action) {
+  try {
+    const raw = await readRequestBody(request);
+    const payload = raw ? JSON.parse(raw) : {};
+    const data = await runtime.rpc(action, payload);
+    sendJson(response, 200, { ok: true, data });
+  } catch (error) {
+    sendJson(response, error.status || 500, { ok: false, error: error.message || String(error), code: error.code, status: error.status });
+  }
+}
+
 function serveStatic(request, response) {
   const requestUrl = new URL(request.url, 'http://127.0.0.1');
   const filePath = safeStaticPath(requestUrl.pathname);
@@ -106,12 +123,25 @@ function serveStatic(request, response) {
 
 function createServer() {
   return http.createServer((request, response) => {
+    const pathName = request.url.split('?')[0];
+    if (request.method === 'POST' && explicitApiRoutes[pathName]) {
+      void handleApiAction(request, response, explicitApiRoutes[pathName]);
+      return;
+    }
     if (request.method === 'POST' && request.url.startsWith('/api/rpc')) {
       void handleRpc(request, response);
       return;
     }
     if (request.method === 'GET' && request.url.startsWith('/api/health')) {
       sendJson(response, 200, { ok: true, version: packageJson.version, mode: 'desktop' });
+      return;
+    }
+    if (request.method === 'GET' && request.url.startsWith('/api/info')) {
+      void runtime.rpc('ping').then(data => sendJson(response, 200, { ok: true, data })).catch(error => sendJson(response, 500, { ok: false, error: error.message || String(error) }));
+      return;
+    }
+    if (request.method === 'GET' && pathName === '/api') {
+      sendJson(response, 200, { name: 'OPS Toolkit Local API', version: packageJson.version, endpoints: Object.entries(explicitApiRoutes).map(([pathName, action]) => ({ method: 'POST', path: pathName, action })) });
       return;
     }
     if (request.method !== 'GET' && request.method !== 'HEAD') {

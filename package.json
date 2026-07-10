@@ -1,13 +1,13 @@
 {
   "name": "ops-toolkit-desktop",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Desktop host for OPS Toolkit with a local background server.",
   "main": "server/desktop-server.js",
   "scripts": {
     "start": "node server/desktop-server.js",
     "start:no-open": "node server/desktop-server.js --no-open",
-    "check": "node --check server/desktop-server.js && node --check server/runtime.js && node --check public/calculator/app.js && node --check public/orders/app.js",
+    "check": "node --check server/desktop-server.js && node --check server/runtime.js && node --check public/desktop.js && node --check public/calculator/app.js && node --check public/orders/app.js",
     "sync:ui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-ui.ps1"
   },
   "engines": {

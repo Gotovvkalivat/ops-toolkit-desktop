@@ -3,7 +3,7 @@
 
   const PROJECTS = {
     kd: { id: 'kd', label: 'Курьер Дисконт', shortLabel: 'КД', apiLabel: 'lk.kdiscont.ru', defaultBestMethod: 'door', sortStrategy: 'company', targetCompanies: ['OPS', 'CSE', 'MExpress', 'CDEK', 'DPD', 'Flip Post', 'PonyExpress', 'Деловые линии', 'Байкал Сервис'] },
-    me: { id: 'me', label: 'M1 Express', shortLabel: 'M1', apiLabel: 'lk.m1express.ru', defaultBestMethod: 'all', sortStrategy: 'urgency', targetCompanies: [] },
+    me: { id: 'me', label: 'ME Express', shortLabel: 'ME', apiLabel: 'lk.m1express.ru', defaultBestMethod: 'all', sortStrategy: 'urgency', targetCompanies: [] },
     ops: { id: 'ops', label: 'OPSPost', shortLabel: 'OPS', apiLabel: 'lk.opspost.ru', defaultBestMethod: 'all', sortStrategy: 'urgency', targetCompanies: [] }
   };
   const TARGET_COMPANIES = PROJECTS.kd.targetCompanies;
@@ -35,7 +35,7 @@
     { key: 'bestUrgency', label: 'Срочность', category: 'Лучший тариф' },
     { key: 'bestTariff', label: 'Лучший тариф', category: 'Лучший тариф' },
     { key: 'bestMethod', label: 'Тип доставки', category: 'Лучший тариф' },
-    { key: 'bestMaxPeriod', label: 'Макс. срок', category: 'Лучший тариф' },
+    { key: 'bestMaxPeriod', label: 'Срок доставки', category: 'Лучший тариф' },
     { key: 'bestPrice', label: 'Цена', category: 'Лучший тариф' },
     { key: 'bestInput', label: 'Вход', category: 'Лучший тариф' },
     { key: 'bestRetail', label: 'Розница', category: 'Лучший тариф' },
@@ -56,6 +56,7 @@
     { key: 'urgency', label: 'Срочность', category: 'Тариф', scope: 'tariff' },
     { key: 'tariffCaption', label: 'Тариф', category: 'Тариф', scope: 'tariff' },
     { key: 'method', label: 'Тип доставки', category: 'Доставка', scope: 'tariff' },
+    { key: 'minPeriod', label: 'Мин. срок, дн.', category: 'Срок', scope: 'tariff' },
     { key: 'maxPeriod', label: 'Макс. срок, дн.', category: 'Срок', scope: 'tariff' },
     { key: 'userPrice', label: 'Цена клиента', category: 'Цены', scope: 'tariff' },
     { key: 'userPriceWithoutDiscount', label: 'Цена без скидки', category: 'Цены', scope: 'tariff' },
@@ -79,7 +80,7 @@
     full: MAIN_EXPORT_FIELDS.map(field => field.key)
   };
   const TARIFF_EXPORT_PRESETS = {
-    compact: ['requestNo','senderQuery','recipientQuery','weight','seats','length','width','height','company','urgency','tariffCaption','method','maxPeriod','userPrice','inputPrice','calculatedDiscount'],
+    compact: ['requestNo','senderQuery','recipientQuery','weight','seats','length','width','height','company','urgency','tariffCaption','method','minPeriod','maxPeriod','userPrice','inputPrice','calculatedDiscount'],
     finance: ['requestNo','senderQuery','recipientQuery','company','tariffCaption','method','maxPeriod','userPrice','userPriceWithoutDiscount','inputPrice','inputPricePercent','retailPrice','servicesPrice','activeDiscount','discountPercent','calculatedDiscount','minPrice','minPricePercent','returnPrice'],
     logistics: ['requestNo','senderQuery','recipientQuery','weight','seats','length','width','height','company','urgency','tariffCaption','method','maxPeriod','includedServices'],
     full: TARIFF_EXPORT_FIELDS.map(field => field.key)
@@ -115,9 +116,9 @@
     finance: ['requestNo','route','company','tariff','method','period','price','input','retail','cargo','details']
   };
   const DEFAULT_PROJECT_SETTINGS = {
-    kd: { enabled:true, email:'', password:'', authChecked:false, inn:'', userId:'', userDisplay:'', exclusions:defaultCompanyExclusions(), bestMethodMode:'door' },
-    me: { enabled:false, email:'', password:'', authChecked:false, inn:'', userId:'', userDisplay:'', exclusions:defaultCompanyExclusions(), bestMethodMode:'all' },
-    ops: { enabled:false, email:'', password:'', authChecked:false, inn:'', userId:'', userDisplay:'', exclusions:defaultCompanyExclusions(), bestMethodMode:'all' }
+    kd: { enabled:true, email:'', password:'', authChecked:false, inn:'', userId:'', userDisplay:'', exclusions:defaultCompanyExclusions(), bestExclusions:[], bestMethodMode:'door' },
+    me: { enabled:false, email:'', password:'', authChecked:false, inn:'', userId:'', userDisplay:'', exclusions:defaultCompanyExclusions(), bestExclusions:[], bestMethodMode:'all' },
+    ops: { enabled:false, email:'', password:'', authChecked:false, inn:'', userId:'', userDisplay:'', exclusions:defaultCompanyExclusions(), bestExclusions:[], bestMethodMode:'all' }
   };
   const DEFAULT_SETTINGS = {
     tokenDaData:'', saveSecrets:true, secretPolicyVersion:2, companyExclusionsVersion:2, concurrency:3, debounceMs:650, calcTimeoutMs:90000, calcRetries:2,
@@ -458,7 +459,7 @@
       runtimeLabel: $('#runtimeLabel'), connectionBadge: $('#connectionBadge'), openSettingsBtn: $('#openSettingsBtn'), themeToggleBtn: $('#themeToggleBtn'),
       settingsPanel: $('#settingsPanel'), emailInput: $('#emailInput'), passwordInput: $('#passwordInput'), dadataInput: $('#dadataInput'),
       savePasswordToggle: $('#savePasswordToggle'), innInput: $('#innInput'), findClientBtn: $('#findClientBtn'), clientResult: $('#clientResult'),
-      concurrencySelect: $('#concurrencySelect'), debounceSelect: $('#debounceSelect'), bestMethodSelect: $('#bestMethodSelect'), exclusionsList: $('#exclusionsList'),
+      concurrencySelect: $('#concurrencySelect'), debounceSelect: $('#debounceSelect'), bestMethodSelect: $('#bestMethodSelect'), exclusionsList: $('#exclusionsList'), bestExclusionsList: $('#bestExclusionsList'),
       calcTimeoutSelect: $('#calcTimeoutSelect'), calcRetriesSelect: $('#calcRetriesSelect'),
       exportCompanySheetsToggle: $('#exportCompanySheetsToggle'), exportMainCompanyColumnsToggle: $('#exportMainCompanyColumnsToggle'), companySheetLayoutSelect: $('#companySheetLayoutSelect'),
       mainExportPresetSelect: $('#mainExportPresetSelect'), tariffExportPresetSelect: $('#tariffExportPresetSelect'),
@@ -1167,6 +1168,7 @@
         }
         if (calcVersion !== row.calcVersion) return null;
         result.calculatedAt ||= new Date().toISOString();
+        result.calculationContext ||= { projectId: currentProjectId(), clientId: String(projectSettings().userId || ''), signature: key };
         row.result = result;
         row.status = 'done';
         row.statusText = cacheStatusText(result);
@@ -1505,8 +1507,12 @@
   }
 
   function formatTerm(item) {
-    const max = Number(item?.maxPeriod);
-    return Number.isFinite(max) && max > 0 ? `${max} дн.` : 'По запросу';
+    const min = Number(item?.minPeriod), max = Number(item?.maxPeriod);
+    const hasMin = Number.isFinite(min) && min > 0, hasMax = Number.isFinite(max) && max > 0;
+    if (hasMin && hasMax && min !== max) return `${min}–${max} дн.`;
+    if (hasMax) return `${max} дн.`;
+    if (hasMin) return `от ${min} дн.`;
+    return 'По запросу';
   }
   function safeNumber(value) {
     if (value === '' || value === null || value === undefined) return '';
@@ -2268,6 +2274,7 @@
         value.inn = sanitizeInn(value.inn);
         const savedExclusions = Array.isArray(value.exclusions) ? value.exclusions : [];
         value.exclusions = companyExclusionsVersion < 2 ? uniqueCompanyNames([...DEFAULT_COMPANY_EXCLUSIONS, ...savedExclusions]) : uniqueCompanyNames(savedExclusions);
+        value.bestExclusions = uniqueCompanyNames(Array.isArray(value.bestExclusions) ? value.bestExclusions : []);
         value.bestMethodMode = value.bestMethodMode === 'all' ? 'all' : PROJECTS[id].defaultBestMethod;
       });
       if (!state.settings.saveSecrets) {
@@ -2359,9 +2366,12 @@
   }
   async function refreshToolkitCredentialsFromStorage() {
     const activeBefore = currentProjectId();
+    const clientBefore = String(projectSettings(activeBefore).userId || '');
     const changed = await hydrateToolkitCredentials();
     if (!changed) return;
     if (PROJECTS[activeBefore]) state.settings.activeProject = activeBefore;
+    const clientAfter = String(projectSettings(activeBefore).userId || '');
+    if (clientBefore !== clientAfter) invalidateClientResults(clientAfter);
     if (state.settingsProjectId && PROJECTS[state.settingsProjectId] && els.settingsPanel?.classList.contains('open')) {
       fillSettingsForm();
     }
@@ -2382,16 +2392,16 @@
   function cacheKeyAddress(query) { return `address:v2:${currentProjectId()}:${normalize(query)}`; }
   function cacheKeyCalculation(row) {
     const p = projectSettings();
-    return ['calc:v13', currentProjectId(), p.userId, row.senderResolved?.placeId || row.senderResolved?.kdId, row.recipientResolved?.placeId || row.recipientResolved?.kdId,
+    return ['calc:v15', currentProjectId(), p.userId, row.senderResolved?.placeId || row.senderResolved?.kdId, row.recipientResolved?.placeId || row.recipientResolved?.kdId,
       DEFAULT_CARGO_TYPE, Math.round(parsePositive(row.seats,1)), cargoWeightValue(row.weight), parsePositive(row.length,10), parsePositive(row.width,10), parsePositive(row.height,10),
-      p.bestMethodMode, [...(p.exclusions || [])].sort().join(',')].join('|');
+      p.bestMethodMode, [...(p.exclusions || [])].sort().join(','), [...(p.bestExclusions || [])].sort().join(',')].join('|');
   }
   function cacheElements() {
     Object.assign(els, {
       runtimeLabel:$('#runtimeLabel'), brandMark:$('#brandMark'), activeProjectTitle:$('#activeProjectTitle'), projectTabs:$('#projectTabs'), connectionBadge:$('#connectionBadge'), cacheStatusBtn:$('#cacheStatusBtn'), helpBtn:$('#helpBtn'), openHelpFromSettingsBtn:$('#openHelpFromSettingsBtn'), helpModal:$('#helpModal'), openSettingsBtn:$('#openSettingsBtn'), themeToggleBtn:$('#themeToggleBtn'),
       settingsPanel:$('#settingsPanel'), settingsProjectTabs:$('#settingsProjectTabs'), settingsProjectLabel:$('#settingsProjectLabel'), projectEnabledToggle:$('#projectEnabledToggle'),
       emailInput:$('#emailInput'), passwordInput:$('#passwordInput'), dadataInput:$('#dadataInput'), savePasswordToggle:$('#savePasswordToggle'), innInput:$('#innInput'), findClientBtn:$('#findClientBtn'), clientResult:$('#clientResult'),
-      concurrencySelect:$('#concurrencySelect'), debounceSelect:$('#debounceSelect'), bestMethodSelect:$('#bestMethodSelect'), exclusionsList:$('#exclusionsList'), exclusionsSettingsCard:$('#exclusionsSettingsCard'), refreshPartnerCompaniesBtn:$('#refreshPartnerCompaniesBtn'), partnerCompaniesStatus:$('#partnerCompaniesStatus'), calcTimeoutSelect:$('#calcTimeoutSelect'), calcRetriesSelect:$('#calcRetriesSelect'),
+      concurrencySelect:$('#concurrencySelect'), debounceSelect:$('#debounceSelect'), bestMethodSelect:$('#bestMethodSelect'), exclusionsList:$('#exclusionsList'), bestExclusionsList:$('#bestExclusionsList'), exclusionsSettingsCard:$('#exclusionsSettingsCard'), refreshPartnerCompaniesBtn:$('#refreshPartnerCompaniesBtn'), partnerCompaniesStatus:$('#partnerCompaniesStatus'), calcTimeoutSelect:$('#calcTimeoutSelect'), calcRetriesSelect:$('#calcRetriesSelect'),
       exportCompanySheetsToggle:$('#exportCompanySheetsToggle'), exportMainCompanyColumnsToggle:$('#exportMainCompanyColumnsToggle'), exportAnalyticsSheetToggle:$('#exportAnalyticsSheetToggle'), companySheetLayoutSelect:$('#companySheetLayoutSelect'),
       mainExportPresetSelect:$('#mainExportPresetSelect'), tariffExportPresetSelect:$('#tariffExportPresetSelect'), mainExportFields:$('#mainExportFields'), tariffExportFields:$('#tariffExportFields'), mainFieldsCount:$('#mainFieldsCount'), tariffFieldsCount:$('#tariffFieldsCount'),
       themeSelect:$('#themeSelect'), densitySelect:$('#densitySelect'), overviewColumnOrderSelect:$('#overviewColumnOrderSelect'), showServiceInfoToggle:$('#showServiceInfoToggle'), saveSettingsBtn:$('#saveSettingsBtn'), clearCacheBtn:$('#clearCacheBtn'), refreshCacheStatsBtn:$('#refreshCacheStatsBtn'), cacheStatsGrid:$('#cacheStatsGrid'),
@@ -2446,7 +2456,7 @@
     $$('[data-fields-action]').forEach(button => button.addEventListener('click', handleFieldsAction));
     els.findClientBtn.addEventListener('click', () => findClientFromForm(false));
     els.refreshPartnerCompaniesBtn?.addEventListener('click', () => refreshPartnerCompanies(true));
-    els.exclusionsSettingsCard?.addEventListener('click', handleExclusionActions);
+    els.exclusionsSettingsCard?.addEventListener('click', event => { handleExclusionActions(event); handleBestExclusionActions(event); });
     const settingsInnSearch = debounceGlobal('inn-search', () => { if (isValidInn(els.innInput.value) && els.emailInput.value.trim() && els.passwordInput.value) findClientFromForm(true); }, 750);
     els.innInput.addEventListener('input', () => { normalizeInnInput(els.innInput); scheduleSettingsAutosave(); settingsInnSearch(); });
     const quickInnSearch = debounceGlobal('quick-inn-search', () => findClientFromQuick(true), 750);
@@ -2532,6 +2542,27 @@
     els.statusDetails.textContent = ready ? 'Данные проектов хранятся раздельно.' : 'Подключение ещё не настроено. Откройте настройки проекта.';
     if (!ready) toast(`${projectDef().shortLabel}: настройте подключение перед расчётом`, 'info');
   }
+  function invalidateClientResults(clientId = projectSettings().userId) {
+    let invalidated = 0;
+    state.rows.forEach(row => {
+      if (!row.result) return;
+      const context = row.result.calculationContext || {};
+      if (String(context.projectId || '') === currentProjectId() && String(context.clientId || '') === String(clientId || '')) return;
+      row.calcVersion = (row.calcVersion || 0) + 1;
+      row.result = null;
+      row.error = '';
+      row.status = row.senderResolved && row.recipientResolved ? 'ready' : 'idle';
+      row.statusText = 'Требуется пересчёт для выбранного клиента';
+      invalidated += 1;
+    });
+    if (!invalidated) return 0;
+    persistTableState();
+    renderTable();
+    refreshSummary();
+    els.statusTitle.textContent = 'Клиент изменён';
+    els.statusDetails.textContent = `${invalidated} строк нужно проверить для нового клиента. Совпавшие расчёты будут получены из кеша.`;
+    return invalidated;
+  }
   function activateSettingsTab(name) {
     $$('.settings-tab').forEach(button => button.classList.toggle('active', button.dataset.settingsTab === name));
     $$('.settings-pane').forEach(pane => pane.classList.toggle('active', pane.dataset.settingsPane === name));
@@ -2562,7 +2593,7 @@
     const inn = normalizeInnInput(els.innInput);
     Object.assign(p, {
       email, password, inn, enabled:true,
-      bestMethodMode:els.bestMethodSelect.value === 'all' ? 'all' : 'door', exclusions:$$('#exclusionsList input:checked').map(input => input.value)
+      bestMethodMode:els.bestMethodSelect.value === 'all' ? 'all' : 'door', exclusions:$$('#exclusionsList input:checked').map(input => input.value), bestExclusions:$$('#bestExclusionsList input:checked').map(input => input.value)
     });
     if (`${email}|${password}` !== previousAccess) {
       p.authChecked = false;
@@ -2755,7 +2786,7 @@
       const eventName = control.tagName === 'SELECT' || control.type === 'checkbox' ? 'change' : 'input';
       control.addEventListener(eventName, scheduleSettingsAutosave);
     });
-    [els.mainExportFields, els.tariffExportFields, els.exclusionsList].filter(Boolean).forEach(container => {
+    [els.mainExportFields, els.tariffExportFields, els.exclusionsList, els.bestExclusionsList].filter(Boolean).forEach(container => {
       container.addEventListener('change', scheduleSettingsAutosave);
     });
   }
@@ -2771,7 +2802,8 @@
       if (item.deliveryCompanyLabel) fromRows.push(item.deliveryCompanyLabel);
     }));
     const selected = projectSettings(projectId).exclusions || [];
-    return uniqueCompanyNames([...fromReference, ...(project.targetCompanies || []), ...DEFAULT_COMPANY_EXCLUSIONS, ...fromRows, ...selected])
+    const bestSelected = projectSettings(projectId).bestExclusions || [];
+    return uniqueCompanyNames([...fromReference, ...(project.targetCompanies || []), ...DEFAULT_COMPANY_EXCLUSIONS, ...fromRows, ...selected, ...bestSelected])
       .sort((a,b)=>a.localeCompare(b,'ru'));
   }
   function updatePartnerCompaniesStatus(projectId = state.settingsProjectId) {
@@ -2816,16 +2848,26 @@
     if (action === 'none') setCheckedFields(els.exclusionsList, []);
     scheduleSettingsAutosave();
   }
+  function handleBestExclusionActions(event) {
+    const button = event.target.closest?.('[data-best-exclusions-action]');
+    if (!button) return;
+    event.preventDefault();
+    if (button.dataset.bestExclusionsAction === 'none') setCheckedFields(els.bestExclusionsList, []);
+    scheduleSettingsAutosave();
+  }
   function renderExclusions() {
     const p = projectSettings(state.settingsProjectId);
     const companies = partnerCompanyNames(state.settingsProjectId);
     updatePartnerCompaniesStatus(state.settingsProjectId);
     if (!companies.length) {
       els.exclusionsList.innerHTML = '<span class="settings-note">Список ТК появится после загрузки справочника или первого расчёта.</span>';
+      if (els.bestExclusionsList) els.bestExclusionsList.innerHTML = '<span class="settings-note">Список пока пуст.</span>';
       return;
     }
     const selected = new Set(p.exclusions || []);
     els.exclusionsList.innerHTML = companies.map(company => `<label><input type="checkbox" value="${escapeHtml(company)}" ${selected.has(company)?'checked':''}><span>${escapeHtml(company)}</span></label>`).join('');
+    const bestSelected = new Set(p.bestExclusions || []);
+    if (els.bestExclusionsList) els.bestExclusionsList.innerHTML = companies.map(company => `<label><input type="checkbox" value="${escapeHtml(company)}" ${bestSelected.has(company)?'checked':''}><span>${escapeHtml(company)}</span></label>`).join('');
   }
   function renderClientResult(error = '') {
     const p = projectSettings(state.settingsProjectId);
@@ -2882,6 +2924,7 @@
   }
   async function findClientFromQuick(silent = false) {
     const p = projectSettings();
+    const previousClientId = String(p.userId || '');
     p.inn = sanitizeInn(els.quickInnInput?.value || p.inn);
     if (els.quickInnInput) els.quickInnInput.value = p.inn;
     if (!p.email || !p.password) {
@@ -2903,6 +2946,7 @@
       p.authChecked = true;
       p.userId = result.id;
       p.userDisplay = result.display;
+      if (previousClientId && previousClientId !== String(result.id || '')) invalidateClientResults(result.id);
       persistSettings();
       if (state.settingsProjectId === currentProjectId()) renderClientResult();
       renderQuickClientPanel();
@@ -2936,11 +2980,12 @@
   }
   async function findClientFromForm(silent = false) {
     captureSettingsProjectForm(); const id=state.settingsProjectId; const p=projectSettings(id);
+    const previousClientId=String(p.userId||'');
     if (!p.email || !p.password || !p.inn) { if(!silent) renderClientResult('Заполните email, пароль и ИНН.'); return; }
     if (!isValidInn(p.inn)) { if(!silent) renderClientResult('ИНН должен быть 10 или 12 цифр.'); return; }
     els.findClientBtn.disabled=true; els.findClientBtn.textContent='Поиск…'; els.clientResult.className='client-result neutral'; els.clientResult.textContent='Ищем контрагента…';
     try {
-      const result=await KDBridge.rpc('searchUser',{projectId:id,email:p.email,password:p.password,inn:p.inn}); p.authChecked=true; p.userId=result.id; p.userDisplay=result.display; persistSettings(); renderClientResult(); renderSettingsProjectTabs(); updateConnectionBadge(); if(id===currentProjectId())renderQuickClientPanel(); refreshPartnerCompanies(false); if(!silent) toast('Контрагент найден','success');
+      const result=await KDBridge.rpc('searchUser',{projectId:id,email:p.email,password:p.password,inn:p.inn}); p.authChecked=true; p.userId=result.id; p.userDisplay=result.display; if(id===currentProjectId()&&previousClientId&&previousClientId!==String(result.id||''))invalidateClientResults(result.id); persistSettings(); renderClientResult(); renderSettingsProjectTabs(); updateConnectionBadge(); if(id===currentProjectId())renderQuickClientPanel(); refreshPartnerCompanies(false); if(!silent) toast('Контрагент найден','success');
     } catch(error) { p.userId=''; p.userDisplay=''; persistSettings(); renderClientResult(error.message); updateConnectionBadge(); if(id===currentProjectId())renderQuickClientPanel(error.message); }
     finally { els.findClientBtn.disabled=false; els.findClientBtn.textContent='Найти'; }
   }
@@ -2989,8 +3034,8 @@
         if(!row.senderResolved) await resolveAddressForRow(row,'sender'); if(!row.recipientResolved) await resolveAddressForRow(row,'recipient'); if(!row.senderResolved||!row.recipientResolved) return markUnresolvedCitySkipped(row);
         row.status='calculating'; row.statusText='Расчёт…'; row.error=''; updateRowDom(row); const key=cacheKeyCalculation(row); let result=options.force?null:await state.cache.get(key); const p=projectSettings();
         if(result) result={...result,cached:true,cacheSource:'browser'};
-        if(!result){ result=await calculateTariffRpc({projectId:currentProjectId(),email:p.email,password:p.password,userId:p.userId,senderCity:row.senderResolved.placeId||row.senderResolved.kdId,recipientCity:row.recipientResolved.placeId||row.recipientResolved.kdId,cargoType:DEFAULT_CARGO_TYPE,cargoWeight:cargoWeightValue(row.weight),cargoSeats:Math.round(parsePositive(row.seats,1)),cargoLength:parsePositive(row.length,10),cargoWidth:parsePositive(row.width,10),cargoHeight:parsePositive(row.height,10),exclusions:p.exclusions||[],bestMethodMode:p.bestMethodMode,timeoutMs:state.settings.calcTimeoutMs,retries:state.settings.calcRetries,force:Boolean(options.force)}); if(result?.cached&&!result.cacheSource)result={...result,cacheSource:'calculator'}; await state.cache.set(key,result,2*24*60*60*1000); }
-        if(calcVersion!==row.calcVersion) return null; row.result=result; row.status='done'; row.statusText=cacheStatusText(result); row.error=''; updateRowDom(row); scheduleTableAutosave(); refreshOpenAnalytics(); return result;
+        if(!result){ result=await calculateTariffRpc({projectId:currentProjectId(),email:p.email,password:p.password,userId:p.userId,senderCity:row.senderResolved.placeId||row.senderResolved.kdId,recipientCity:row.recipientResolved.placeId||row.recipientResolved.kdId,cargoType:DEFAULT_CARGO_TYPE,cargoWeight:cargoWeightValue(row.weight),cargoSeats:Math.round(parsePositive(row.seats,1)),cargoLength:parsePositive(row.length,10),cargoWidth:parsePositive(row.width,10),cargoHeight:parsePositive(row.height,10),exclusions:p.exclusions||[],bestExclusions:p.bestExclusions||[],bestMethodMode:p.bestMethodMode,timeoutMs:state.settings.calcTimeoutMs,retries:state.settings.calcRetries,force:Boolean(options.force)}); if(result?.cached&&!result.cacheSource)result={...result,cacheSource:'calculator'}; await state.cache.set(key,result,2*24*60*60*1000); }
+        if(calcVersion!==row.calcVersion) return null; result.calculationContext ||= {projectId:currentProjectId(),clientId:String(projectSettings().userId||''),signature:key}; row.result=result; row.status='done'; row.statusText=cacheStatusText(result); row.error=''; updateRowDom(row); scheduleTableAutosave(); refreshOpenAnalytics(); return result;
       } catch(error){ if(calcVersion!==row.calcVersion) return null; row.result=null; row.status='error'; row.statusText='Ошибка расчёта'; row.error=error.message; updateRowDom(row); scheduleTableAutosave(); refreshOpenAnalytics(); if(options.force) toast(error.message,'error'); return null; }
       finally { row.calcPromise=null; }
     })(); row.calcPromise=work; return work;
@@ -3651,7 +3696,8 @@
   }
   function usesUrgencyView(projectId = currentProjectId()) { return projectDef(projectId).sortStrategy === 'urgency'; }
   function formatTerm(item) {
-    const max=Number(item?.maxPeriod); if(!Number.isFinite(max)||max<=0) return 'По запросу'; return `${max} дн.`;
+    const min=Number(item?.minPeriod),max=Number(item?.maxPeriod),hasMin=Number.isFinite(min)&&min>0,hasMax=Number.isFinite(max)&&max>0;
+    if(hasMin&&hasMax&&min!==max)return`${min}–${max} дн.`;if(hasMax)return`${max} дн.`;if(hasMin)return`от ${min} дн.`;return'По запросу';
   }
   function validPeriod(value) { const number=Number(value); return Number.isFinite(number)&&number>0?number:null; }
   function optionalNumeric(value, options = {}) {
@@ -5597,7 +5643,7 @@
     const values={
       requestNo:index+1,senderQuery:row.senderQuery,senderKd:row.senderResolved?.placeText||row.senderResolved?.kdText||'',recipientQuery:row.recipientQuery,recipientKd:row.recipientResolved?.placeText||row.recipientResolved?.kdText||'',
       weight:parsePositive(row.weight,.1),seats:Math.round(parsePositive(row.seats,1)),length:parsePositive(row.length,10),width:parsePositive(row.width,10),height:parsePositive(row.height,10),status:row.statusText,error:row.error||'',
-      bestCompany:best.deliveryCompanyLabel||'',bestUrgency:best.urgencyLabel||'',bestTariff:tariffDisplayName(best),bestMethod:best.deliveryTypeLabel||best.deliveryMethodLabel||'',bestMaxPeriod:periodExportValue(best.maxPeriod),bestPrice:safeNumber(best.userPrice),bestInput:safeNumber(best.inputPrice),bestRetail:projectHasRetailPricing()?safeNumber(best.retailPrice):'',bestDiscount:safeNumber(discount)
+      bestCompany:best.deliveryCompanyLabel||'',bestUrgency:best.urgencyLabel||'',bestTariff:tariffDisplayName(best),bestMethod:best.deliveryTypeLabel||best.deliveryMethodLabel||'',bestMaxPeriod:formatTerm(best),bestPrice:safeNumber(best.userPrice),bestInput:safeNumber(best.inputPrice),bestRetail:projectHasRetailPricing()?safeNumber(best.retailPrice):'',bestDiscount:safeNumber(discount)
     };
     return values[key]??'';
   }
@@ -5605,7 +5651,7 @@
     const values={
       requestNo:index+1,senderQuery:row.senderQuery,senderKd:row.senderResolved?.placeText||row.senderResolved?.kdText||'',recipientQuery:row.recipientQuery,recipientKd:row.recipientResolved?.placeText||row.recipientResolved?.kdText||'',
       weight:parsePositive(row.weight,.1),seats:Math.round(parsePositive(row.seats,1)),length:parsePositive(row.length,10),width:parsePositive(row.width,10),height:parsePositive(row.height,10),
-      company:item?.deliveryCompanyLabel||'',urgency:item?.urgencyLabel||'',tariffCaption:item?tariffDisplayName(item):'',method:item?.deliveryTypeLabel||item?.deliveryMethodLabel||'',maxPeriod:periodExportValue(item?.maxPeriod),
+      company:item?.deliveryCompanyLabel||'',urgency:item?.urgencyLabel||'',tariffCaption:item?tariffDisplayName(item):'',method:item?.deliveryTypeLabel||item?.deliveryMethodLabel||'',minPeriod:periodExportValue(item?.minPeriod),maxPeriod:periodExportValue(item?.maxPeriod),
       userPrice:safeNumber(item?.userPrice),userPriceWithoutDiscount:safeNumber(item?.userPriceWithoutDiscount),inputPrice:safeNumber(item?.inputPrice),inputPricePercent:safeNumber(item?.inputPricePercent),retailPrice:projectHasRetailPricing()?safeNumber(item?.retailPrice):'',servicesPrice:safeNumber(item?.servicesPrice),activeDiscount:safeNumber(item?.activeDiscount),discountPercent:safeNumber(item?.discountPercent),calculatedDiscount:safeNumber(displayDiscountPct(item)),minPrice:safeNumber(item?.minPrice),minPricePercent:safeNumber(item?.minPricePercent),returnAllowed:item?.returnServiceAllowed?'Да':'Нет',returnPrice:safeNumber(item?.returnServicePrice),includedServices:servicesSummary(item,true),allServices:servicesSummary(item,false)
     };
     return values[key]??'';
@@ -6069,8 +6115,72 @@
     document.getElementById('downloadMatrixXlsxBtn')?.addEventListener('click',downloadMatrixXlsx);
   }
 
+  window.OPS_TOOLKIT_MODULE = {
+    tool: 'calculator',
+    isBusy() { return Boolean(state.running || state.orderView?.running); },
+    switchProject(projectId) { switchProject(projectId); },
+    async refreshCredentials() {
+      const previousClient = projectSettings().userId;
+      await hydrateToolkitCredentials();
+      renderProjectTabs();
+      renderQuickClientPanel();
+      updateConnectionBadge();
+      const nextClient = projectSettings().userId;
+      if (String(previousClient || '') !== String(nextClient || '')) invalidateClientResults(nextClient);
+    },
+    invalidateClientResults,
+    openSettings() { openSettings('calculation'); },
+    openHelp() { openHelpModal(); },
+    setTheme(theme) {
+      state.settings.theme = theme;
+      persistSettings();
+      applyTheme(theme);
+    },
+    getSettings() {
+      const p = projectSettings();
+      return {
+        bestMethodMode: p.bestMethodMode || projectDef().defaultBestMethod,
+        exclusions: [...(p.exclusions || [])], bestExclusions: [...(p.bestExclusions || [])],
+        companies: partnerCompanyNames(currentProjectId()), concurrency: state.settings.concurrency,
+        debounceMs: state.settings.debounceMs, calcTimeoutMs: state.settings.calcTimeoutMs,
+        calcRetries: state.settings.calcRetries, density: state.settings.density,
+        showServiceInfo: Boolean(state.settings.showServiceInfo), exportCompanySheets: state.settings.exportCompanySheets !== false,
+        exportAnalyticsSheet: Boolean(state.settings.exportAnalyticsSheet), companySheetLayout: state.settings.companySheetLayout
+      };
+    },
+    updateSettings(next = {}) {
+      const p = projectSettings();
+      if (Object.prototype.hasOwnProperty.call(next, 'bestMethodMode')) p.bestMethodMode = next.bestMethodMode === 'all' ? 'all' : 'door';
+      if (Array.isArray(next.exclusions)) p.exclusions = uniqueCompanyNames(next.exclusions);
+      if (Array.isArray(next.bestExclusions)) p.bestExclusions = uniqueCompanyNames(next.bestExclusions);
+      if (Object.prototype.hasOwnProperty.call(next, 'concurrency')) state.settings.concurrency = Math.min(6, Math.max(1, Number(next.concurrency) || 3));
+      if (Object.prototype.hasOwnProperty.call(next, 'debounceMs')) state.settings.debounceMs = Math.min(1200, Math.max(400, Number(next.debounceMs) || 650));
+      if (Object.prototype.hasOwnProperty.call(next, 'calcTimeoutMs')) state.settings.calcTimeoutMs = Math.min(180000, Math.max(30000, Number(next.calcTimeoutMs) || 90000));
+      if (Object.prototype.hasOwnProperty.call(next, 'calcRetries')) state.settings.calcRetries = Math.min(3, Math.max(0, Number(next.calcRetries) || 0));
+      if (Object.prototype.hasOwnProperty.call(next, 'density')) state.settings.density = ['micro','compact','medium','spacious'].includes(next.density) ? next.density : 'medium';
+      if (Object.prototype.hasOwnProperty.call(next, 'showServiceInfo')) state.settings.showServiceInfo = Boolean(next.showServiceInfo);
+      if (Object.prototype.hasOwnProperty.call(next, 'exportCompanySheets')) state.settings.exportCompanySheets = Boolean(next.exportCompanySheets);
+      if (Object.prototype.hasOwnProperty.call(next, 'exportAnalyticsSheet')) state.settings.exportAnalyticsSheet = Boolean(next.exportAnalyticsSheet);
+      if (Object.prototype.hasOwnProperty.call(next, 'companySheetLayout')) state.settings.companySheetLayout = next.companySheetLayout === 'long' ? 'long' : 'wide';
+      persistSettings();
+      applyDensity();
+      fillSettingsForm();
+      return this.getSettings();
+    },
+    runAction(action) {
+      if (action === 'calculate') return calculateAll();
+      if (action === 'import') return els.fileInput?.click();
+      if (action === 'template') return downloadImportTemplate();
+      if (action === 'example') return insertDemo();
+      if (action === 'toggle-auto') { els.autoCalcToggle.checked = !els.autoCalcToggle.checked; els.autoCalcToggle.dispatchEvent(new Event('change', { bubbles: true })); return els.autoCalcToggle.checked; }
+      if (action === 'help') return openHelpModal();
+      if (action === 'settings') return openSettings('connections');
+    }
+  };
+
 
   document.addEventListener('DOMContentLoaded', init);
   document.addEventListener('DOMContentLoaded',()=>setTimeout(initV22Ui,0));
   document.addEventListener('DOMContentLoaded',()=>setTimeout(initV25Ui,0));
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>window.parent?.postMessage({type:'ops-toolkit-ready',tool:'calculator'},location.origin),0));
 })();

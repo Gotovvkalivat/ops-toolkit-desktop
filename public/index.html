@@ -3,56 +3,124 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>OPS Toolkit Desktop</title>
-  <link rel="stylesheet" href="desktop.css">
+  <link rel="stylesheet" href="desktop.css?v=0.3.0">
 </head>
 <body>
-  <main class="desktop-shell">
-    <section class="hero">
-      <div class="mark" aria-hidden="true">+</div>
-      <div>
-        <p class="eyebrow">desktop версия</p>
-        <h1>OPS Toolkit</h1>
-        <p class="lead">Расчёт тарифов и массовое оформление заказов через локальный фоновый сервер.</p>
-      </div>
-      <span id="serverStatus" class="status-pill">Проверка сервера...</span>
-    </section>
+  <div class="app-frame">
+    <header class="unified-navbar">
+      <div class="navbar-main">
+        <a class="app-brand" href="#calculator" aria-label="OPS Toolkit">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/></svg>
+          </span>
+          <span class="brand-copy"><b>OPS Toolkit</b><small id="serverStatus">Подключение к серверу...</small></span>
+        </a>
 
-    <section class="tool-grid" aria-label="Разделы приложения">
-      <a class="tool-card" href="/calculator/index.html">
-        <span class="tool-icon">∑</span>
-        <span>
-          <b>Массовый расчёт</b>
-          <small>Тарифы, сравнение ТК, аналитика и выгрузки.</small>
-        </span>
-      </a>
-      <a class="tool-card" href="/orders/index.html">
-        <span class="tool-icon">+</span>
-        <span>
-          <b>Массовое оформление</b>
-          <small>Импорт заказов, выбор тарифов, услуг и создание заявок.</small>
-        </span>
-      </a>
-    </section>
+        <nav class="tool-switch" aria-label="Раздел приложения">
+          <button class="tool-tab active" type="button" data-tool="calculator" aria-pressed="true">
+            <svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2m4 0h2M8 14h2m4 0h2M8 18h2m4 0h2"/></svg>
+            <span><b>Расчёт</b><small>Тарифы и аналитика</small></span>
+          </button>
+          <button class="tool-tab" type="button" data-tool="orders" aria-pressed="false">
+            <svg viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+            <span><b>Оформление</b><small>Создание заказов</small></span>
+          </button>
+        </nav>
 
-    <section class="notes">
-      <h2>Как это работает</h2>
-      <div class="note-grid">
-        <article>
-          <b>Фоновый сервер</b>
-          <p>Авторизация, запросы в ЛК, DaData, кеши и лимиты запросов выполняются в отдельном Node-процессе.</p>
-        </article>
-        <article>
-          <b>Меньше лагов</b>
-          <p>Интерфейс не держит сетевые очереди и тяжёлую обработку ответов в одном потоке с кликами пользователя.</p>
-        </article>
-        <article>
-          <b>Локальные данные</b>
-          <p>Черновики и настройки остаются на компьютере в профиле desktop-окна.</p>
-        </article>
+        <div class="project-control" aria-label="Проект">
+          <span class="control-caption">Проект</span>
+          <div id="projectTabs" class="project-tabs">
+            <button class="project-tab active" type="button" data-project="kd"><span>КД</span><i aria-hidden="true"></i></button>
+            <button class="project-tab" type="button" data-project="me"><span>ME</span><i aria-hidden="true"></i></button>
+            <button class="project-tab" type="button" data-project="ops"><span>OPS</span><i aria-hidden="true"></i></button>
+          </div>
+        </div>
+
+        <div class="navbar-spacer"></div>
+
+        <button id="themeButton" class="icon-button" type="button" title="Переключить тему" aria-label="Переключить тему">
+          <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+        </button>
+        <button id="helpButton" class="icon-button" type="button" title="Справка активного раздела" aria-label="Справка">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4M12 18h.01"/></svg>
+        </button>
+        <button id="settingsButton" class="button secondary" type="button">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.1h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6V3h4v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1v4H21a1.7 1.7 0 0 0-1.6 1z"/></svg>
+          <span>Настройки</span>
+        </button>
       </div>
-    </section>
-  </main>
-  <script src="desktop.js"></script>
+
+      <div class="navbar-context">
+        <div class="context-title">
+          <span id="activeToolIcon" class="context-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2m4 0h2M8 14h2m4 0h2M8 18h2m4 0h2"/></svg>
+          </span>
+          <span><b id="activeToolTitle">Массовый расчёт доставки</b><small id="activeToolHint">Тарифы, сравнение ТК и аналитика</small></span>
+        </div>
+
+        <div class="client-control">
+          <label for="clientInnInput">Клиент</label>
+          <div class="client-input-row">
+            <input id="clientInnInput" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="ИНН клиента">
+            <button id="findClientButton" class="icon-button compact" type="button" title="Найти клиента" aria-label="Найти клиента">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </button>
+          </div>
+          <span id="clientResult" class="client-result">Клиент не выбран</span>
+        </div>
+
+        <div id="toolActions" class="tool-actions" aria-label="Основные действия"></div>
+      </div>
+    </header>
+
+    <main class="workspace" aria-live="polite">
+      <iframe id="calculatorFrame" class="tool-frame active" src="/calculator/index.html?desktop=1" title="Массовый расчёт"></iframe>
+      <iframe id="ordersFrame" class="tool-frame" data-src="/orders/index.html?desktop=1" title="Массовое оформление"></iframe>
+      <div id="frameLoading" class="frame-loading" hidden>
+        <span class="spinner"></span><b>Открываю раздел...</b>
+      </div>
+    </main>
+  </div>
+
+  <div id="settingsDrawer" class="settings-drawer" hidden>
+    <button class="drawer-backdrop" type="button" data-close-settings aria-label="Закрыть настройки"></button>
+    <aside class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <header class="drawer-header">
+        <div><span class="drawer-eyebrow" id="settingsProjectLabel">Курьер Дисконт</span><h2 id="settingsTitle">Настройки</h2><p id="settingsSubtitle">Доступ и параметры массового расчёта</p></div>
+        <button class="icon-button" type="button" data-close-settings aria-label="Закрыть"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </header>
+      <div class="drawer-body">
+        <section class="settings-section access-section">
+          <div class="section-heading"><span class="section-number">1</span><div><h3>Доступ к проекту</h3><p>Один доступ используется расчётом и оформлением.</p></div></div>
+          <div class="form-grid">
+            <label class="field"><span>Email <b>*</b></span><input id="emailInput" type="email" autocomplete="username" placeholder="user@example.ru"></label>
+            <label class="field"><span>Пароль <b>*</b></span><span class="password-field"><input id="passwordInput" type="password" autocomplete="current-password"><button id="passwordToggle" type="button" aria-label="Показать пароль">Показать</button></span></label>
+            <label class="field wide"><span>Токен DaData <b>*</b></span><input id="dadataInput" type="password" autocomplete="off" placeholder="Токен распознавания адресов"></label>
+          </div>
+          <div id="authStatus" class="inline-status neutral"><span></span>Доступ ещё не проверен</div>
+        </section>
+        <section class="settings-section">
+          <div class="section-heading"><span class="section-number">2</span><div><h3 id="sectionSettingsTitle">Массовый расчёт</h3><p id="sectionSettingsHint">Настройки активного инструмента.</p></div></div>
+          <div id="moduleSettingsHost" class="module-settings-host"></div>
+        </section>
+        <details class="technical-settings">
+          <summary>Диагностика</summary>
+          <div class="debug-row">
+            <label class="switch-field"><input id="debugModeInput" type="checkbox"><span>Показывать ID ошибки</span></label>
+            <a href="/api/debug/status" target="_blank" rel="noreferrer">Открыть диагностику</a>
+          </div>
+        </details>
+      </div>
+      <footer class="drawer-footer">
+        <button class="button ghost" type="button" data-close-settings>Закрыть</button>
+        <button id="saveSettingsButton" class="button primary" type="button"><span class="button-spinner" hidden></span>Сохранить и проверить</button>
+      </footer>
+    </aside>
+  </div>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+  <script src="desktop.js?v=0.3.0"></script>
 </body>
 </html>

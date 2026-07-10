@@ -25,7 +25,7 @@
   const DEFAULT_PROJECTS = [
     { id: 'kd', label: 'Курьер Дисконт', shortLabel: 'КД', color: '#a2407b' },
     { id: 'ops', label: 'OPSPost', shortLabel: 'OPS', color: '#af6400' },
-    { id: 'me', label: 'M1 Express', shortLabel: 'M1', color: '#c60707' }
+    { id: 'me', label: 'ME Express', shortLabel: 'ME', color: '#555b66' }
   ];
   const TEMPLATE_HEADERS = [
     'Отправитель: организация', 'Отправитель: контакт', 'Отправитель: телефон', 'Отправитель: город', 'Отправитель: адрес',
@@ -740,26 +740,117 @@
       }
     });
   }
+  function openDraftDb() {
+    if (!globalThis.indexedDB) return Promise.resolve(null);
+    return new Promise(resolve => {
+      try {
+        const request = indexedDB.open('ops-toolkit-order-drafts', 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains('items')) db.createObjectStore('items', { keyPath: 'key' });
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+  const draftDbPromise = openDraftDb();
+  async function readIndexedDraftValue(key) {
+    const db = await draftDbPromise;
+    if (!db) return null;
+    return new Promise(resolve => {
+      try {
+        const request = db.transaction('items', 'readonly').objectStore('items').get(key);
+        request.onsuccess = () => resolve(request.result?.value ?? null);
+        request.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+  async function writeIndexedDraftValue(key, value) {
+    const db = await draftDbPromise;
+    if (!db) return false;
+    return new Promise(resolve => {
+      try {
+        const tx = db.transaction('items', 'readwrite');
+        tx.objectStore('items').put({ key, value, updatedAt: Date.now() });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch {
+        resolve(false);
+      }
+    });
+  }
+  async function removeIndexedDraftValues(keys) {
+    const db = await draftDbPromise;
+    if (!db) return false;
+    const list = Array.isArray(keys) ? keys : [keys];
+    return new Promise(resolve => {
+      try {
+        const tx = db.transaction('items', 'readwrite');
+        const store = tx.objectStore('items');
+        list.filter(Boolean).forEach(key => store.delete(key));
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch {
+        resolve(false);
+      }
+    });
+  }
+  async function indexedDraftKeys() {
+    const db = await draftDbPromise;
+    if (!db) return [];
+    return new Promise(resolve => {
+      try {
+        const request = db.transaction('items', 'readonly').objectStore('items').getAllKeys();
+        request.onsuccess = () => resolve((request.result || []).map(String));
+        request.onerror = () => resolve([]);
+      } catch {
+        resolve([]);
+      }
+    });
+  }
   async function readOrderStorageValue(key) {
     const stored = await readExtensionStorage([key]);
     if (stored && Object.prototype.hasOwnProperty.call(stored, key)) return stored[key];
+    const indexed = await readIndexedDraftValue(key);
+    if (indexed) return indexed;
     const local = readLocalStorageJson(key);
     if (local) void writeOrderStorageValue(key, local);
     return local;
   }
   async function writeOrderStorageValue(key, value) {
+    const isWorkspace = String(key || '').startsWith(ORDER_WORKSPACE_PREFIX);
+    if (isWorkspace) {
+      const indexedOk = await writeIndexedDraftValue(key, value);
+      if (indexedOk) {
+        await removeExtensionStorage([key]);
+        try { localStorage.removeItem(key); } catch { /* noop */ }
+        return true;
+      }
+    }
     if (toolkitStorage()) {
       const ok = await writeExtensionStorage({ [key]: value });
       if (ok) {
+        await removeIndexedDraftValues([key]);
         try { localStorage.removeItem(key); } catch { /* noop */ }
+        return true;
       }
-      return ok;
+    }
+    const indexedOk = await writeIndexedDraftValue(key, value);
+    if (indexedOk) {
+      try { localStorage.removeItem(key); } catch { /* noop */ }
+      return true;
     }
     return writeLocalStorageJson(key, value);
   }
   async function removeOrderStorageValues(keys) {
     const list = Array.isArray(keys) ? keys : [keys];
     await removeExtensionStorage(list);
+    await removeIndexedDraftValues(list);
     list.forEach(key => {
       try { localStorage.removeItem(key); } catch { /* noop */ }
     });
@@ -897,6 +988,7 @@
       const key = localStorage.key(index);
       if (isOrderCreatorStorageKey(key)) keys.add(key);
     }
+    (await indexedDraftKeys()).filter(isOrderCreatorStorageKey).forEach(key => keys.add(key));
     const stored = await readExtensionStorage(null);
     if (stored) Object.keys(stored).filter(isOrderCreatorStorageKey).forEach(key => keys.add(key));
     return [...keys];
@@ -1020,9 +1112,12 @@
   async function refreshToolkitCredentialsFromStorage() {
     if (state.running) return;
     const activeBefore = state.settings.projectId;
+    const clientBefore = String(state.settings.userId || '');
     const changed = await hydrateToolkitCredentials(activeBefore);
     if (!changed) return;
     if (state.settings.projectId !== activeBefore) state.settings.projectId = activeBefore;
+    const clientAfter = String(state.settings.userId || '');
+    if (clientBefore !== clientAfter) invalidateClientResults(clientAfter);
     renderSettings();
     renderClient();
     renderStats();
@@ -1211,7 +1306,7 @@
   function orderCalculationCacheKey(row, settings = credentials()) {
     const exclusions = ['Достависта', 'Пешкарики', 'Яндекс Доставка', 'Yandex'].sort();
     return [
-      'calc:v13',
+      'calc:v15',
       settings.projectId,
       settings.userId,
       row.sender?.resolved?.placeId || row.sender?.resolved?.kdId || '',
@@ -2708,7 +2803,32 @@
     return row.status !== 'created' && !rowIssue(row);
   }
   function rowHasReadyCalculation(row) {
-    return Boolean(row?.status === 'calculated' && row.sender?.resolved && row.recipient?.resolved && doorTariffs(row).length);
+    const context = row?.result?.calculationContext || {};
+    const matchesClient = String(context.projectId || '') === String(state.settings.projectId || '')
+      && String(context.clientId || '') === String(state.settings.userId || '');
+    return Boolean(matchesClient && row?.status === 'calculated' && row.sender?.resolved && row.recipient?.resolved && doorTariffs(row).length);
+  }
+  function invalidateClientResults(clientId = state.settings.userId) {
+    let invalidated = 0;
+    state.rows.forEach(row => {
+      if (!row.result || row.status === 'created') return;
+      const context = row.result.calculationContext || {};
+      if (String(context.projectId || '') === String(state.settings.projectId || '') && String(context.clientId || '') === String(clientId || '')) return;
+      row.result = null;
+      row.tariffKey = '';
+      row.tariffSearch = '';
+      row.services = {};
+      row.error = '';
+      clearRowFieldErrors(row);
+      row.status = row.sender?.resolved && row.recipient?.resolved ? 'imported' : row.status;
+      invalidated += 1;
+    });
+    if (!invalidated) return 0;
+    invalidateRowsRenderCache();
+    saveState();
+    render();
+    setStatus(`Клиент изменён: ${invalidated} строк требуют проверки тарифа. Совпавшие расчёты загрузятся из кеша.`, 'error');
+    return invalidated;
   }
   function sessionHasData() {
     return Boolean(
@@ -3639,7 +3759,9 @@
     state.createProgress = { active: false, total: 0, done: 0, success: 0, errors: 0 };
     invalidateRowsRenderCache();
     saveState();
+    await syncToolkitCredentials();
     render();
+    window.parent?.postMessage({ type: 'ops-toolkit-client-cleared', tool: 'orders', projectId: state.settings.projectId }, location.origin);
     showToast('Сеанс очищен. Можно выбрать клиента и загрузить новый файл.', 'ready');
   }
   function clearRowFieldErrors(row, paths = null) {
@@ -4226,6 +4348,7 @@
 
   async function findClient() {
     const settings = credentials();
+    const previousClientId = String(state.settings.userId || '');
     state.settings.userInn = sanitizeInn(state.settings.userInn);
     if (!validInn(state.settings.userInn)) {
       setStatus('Введите ИНН клиента: 10 или 12 цифр.', 'error');
@@ -4240,6 +4363,7 @@
       const result = await KDBridge.rpc('searchUser', { projectId: settings.projectId, email: settings.email, password: settings.password, inn: sanitizeInn(state.settings.userInn) });
       state.settings.userId = result.id;
       state.settings.userDisplay = result.display;
+      if (previousClientId && previousClientId !== String(result.id || '')) invalidateClientResults(result.id);
       saveState();
       void syncToolkitCredentials();
       render();
@@ -4437,6 +4561,11 @@
           result = compactOrderCalculationResult(await KDBridge.rpc('calculate', payload));
           await state.cache?.set(cacheKey, result, 2 * 24 * 60 * 60 * 1000);
         }
+        result.calculationContext ||= {
+          projectId: settings.projectId,
+          clientId: String(settings.userId || ''),
+          signature: cacheKey
+        };
         row.result = result;
         const item = selectedTariff(row);
         if (!item) throw new Error('Нет тарифов дверь-дверь для создания заказа');
@@ -5745,5 +5874,57 @@
     });
   }
 
-  init();
+  window.OPS_TOOLKIT_MODULE = {
+    tool: 'orders',
+    isBusy() { return Boolean(state.running || state.uiBusy); },
+    switchProject(projectId) { return switchActiveProject(projectId); },
+    async refreshCredentials() {
+      const previousClient = String(state.settings.userId || '');
+      await refreshToolkitCredentialsFromStorage();
+      const nextClient = String(state.settings.userId || '');
+      if (previousClient !== nextClient) invalidateClientResults(nextClient);
+    },
+    invalidateClientResults,
+    openSettings() { openSettingsModal(); },
+    openHelp() { openHelpModal(); },
+    setTheme(theme) {
+      state.settings.theme = theme;
+      saveState();
+      applyTheme();
+    },
+    getSettings() {
+      return {
+        concurrency: concurrency(), timeoutMs: calculationTimeoutMs(), retries: calculationRetries(), density: state.settings.density,
+        autoCalculate: Boolean(state.settings.autoCalculate), showOnboarding: state.settings.showOnboarding !== false,
+        performanceMode: Boolean(state.settings.performanceMode), viewMode: state.viewMode
+      };
+    },
+    updateSettings(next = {}) {
+      if (Object.prototype.hasOwnProperty.call(next, 'concurrency')) state.settings.concurrency = Math.min(6, Math.max(1, Number(next.concurrency) || 3));
+      if (Object.prototype.hasOwnProperty.call(next, 'timeoutMs')) state.settings.timeoutMs = calculationTimeoutMs(next.timeoutMs);
+      if (Object.prototype.hasOwnProperty.call(next, 'retries')) state.settings.retries = calculationRetries(next.retries);
+      if (Object.prototype.hasOwnProperty.call(next, 'density')) state.settings.density = ['comfortable', 'compact', 'dense'].includes(next.density) ? next.density : 'compact';
+      if (Object.prototype.hasOwnProperty.call(next, 'autoCalculate')) state.settings.autoCalculate = Boolean(next.autoCalculate);
+      if (Object.prototype.hasOwnProperty.call(next, 'showOnboarding')) state.settings.showOnboarding = Boolean(next.showOnboarding);
+      if (Object.prototype.hasOwnProperty.call(next, 'performanceMode')) state.settings.performanceMode = Boolean(next.performanceMode);
+      saveState();
+      renderSettings();
+      render();
+      return this.getSettings();
+    },
+    runAction(action) {
+      if (action === 'resolve') return resolveAddresses();
+      if (action === 'calculate') return calculateRows();
+      if (action === 'create') return createOrders();
+      if (action === 'import') return els.importFileInput?.click();
+      if (action === 'template') return downloadTemplate();
+      if (action === 'toggle-view') { els.viewModeBtn?.click(); return; }
+      if (action === 'toggle-auto') { state.settings.autoCalculate = !state.settings.autoCalculate; saveState(); renderSettings(); renderButtons(); return state.settings.autoCalculate; }
+      if (action === 'start-over') return resetWorkSession();
+      if (action === 'help') return openHelpModal();
+      if (action === 'settings') return openSettingsModal();
+    }
+  };
+
+  void init().then(() => window.parent?.postMessage({ type: 'ops-toolkit-ready', tool: 'orders' }, location.origin));
 })();

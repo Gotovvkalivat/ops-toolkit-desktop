@@ -2,6 +2,8 @@
 
 const DEFAULT_EXCLUDED_COMPANIES = ['Достависта', 'Пешкарики', 'Dimex', 'FoxExpress', 'Яндекс Доставка', 'Global Delivery', 'TNT', 'UPS'];
 const DEFAULT_EXCLUDED_COMPANY_IDS = [2, 6, 12, 14, 17, 19, 16, 15];
+const NON_TRANSPORT_BEST_COMPANY_PATTERNS = ['достависта', 'пешкар', 'яндекс достав'];
+const NON_TRANSPORT_BEST_COMPANY_IDS = new Set([2, 6, 17]);
 
 const PROJECTS = {
   kd: {
@@ -10,7 +12,7 @@ const PROJECTS = {
     hardExclusions: [], excludedCompanyIds: [], defaultExclusions: DEFAULT_EXCLUDED_COMPANIES, defaultExcludedCompanyIds: DEFAULT_EXCLUDED_COMPANY_IDS, defaultBestMethod: 'door'
   },
   me: {
-    id: 'me', label: 'M1 Express', shortLabel: 'M1', baseUrl: 'https://lk.m1express.ru', sortStrategy: 'urgency',
+    id: 'me', label: 'ME Express', shortLabel: 'ME', baseUrl: 'https://lk.m1express.ru', sortStrategy: 'urgency',
     targetOrder: [], hardExclusions: [], excludedCompanyIds: [], defaultExclusions: DEFAULT_EXCLUDED_COMPANIES, defaultExcludedCompanyIds: DEFAULT_EXCLUDED_COMPANY_IDS, defaultBestMethod: 'all'
   },
   ops: {
@@ -385,6 +387,12 @@ function isFullAddressCompany(value) {
   const name = normalize(value);
   return name.includes('достависта') || name.includes('пешкар') || (name.includes('яндекс') && name.includes('достав'));
 }
+function isTransportBestCandidate(item) {
+  const companyId = Number(item?.deliveryCompany);
+  const companyName = normalize(item?.deliveryCompanyLabel);
+  if (NON_TRANSPORT_BEST_COMPANY_IDS.has(companyId)) return false;
+  return !NON_TRANSPORT_BEST_COMPANY_PATTERNS.some(pattern => companyName.includes(pattern));
+}
 function compactParamOptions(value) {
   if (Array.isArray(value)) return value;
   if (value && typeof value === 'object') return value;
@@ -444,7 +452,7 @@ function compactTariff(item, calculatorOrder = 0, companyLabelsById = new Map())
     deliveryCompanyLabel, deliveryCompanyIcon: item.deliveryCompanyIcon || '',
     deliveryMethod: item.deliveryMethod, deliveryMethodLabel: deliveryMethodLabel(item), deliveryType: item.deliveryType ?? '',
     deliveryTypeLabel: item.deliveryTypeLabel || deliveryMethodLabel(item), hasError: Boolean(item.hasError),
-    maxPeriod: optionalNumber(item.maxPeriod),
+    minPeriod: optionalNumber(item.minPeriod ?? item.periodMin ?? item.min_period ?? item.deliveryPeriodMin ?? item.delivery_period_min), maxPeriod: optionalNumber(item.maxPeriod ?? item.periodMax ?? item.max_period ?? item.deliveryPeriodMax ?? item.delivery_period_max),
     userPrice: optionalNumber(item.user_price) ?? 0, userPriceWithoutDiscount,
     inputPrice, inputPricePercent, retailPrice, minPrice, minPricePercent,
     ratePrice: optionalNumber(item.ratePrice), ratePricePercent: optionalNumber(item.ratePricePercent),
@@ -497,7 +505,7 @@ function compactOrderCreatorTariff(item, index = 0) {
     deliveryType: item?.deliveryType ?? '',
     deliveryTypeLabel: item?.deliveryTypeLabel || '',
     hasError: Boolean(item?.hasError),
-    maxPeriod: optionalNumber(item?.maxPeriod),
+    minPeriod: optionalNumber(item?.minPeriod), maxPeriod: optionalNumber(item?.maxPeriod),
     userPrice: optionalNumber(item?.userPrice) ?? 0,
     returnServiceAllowed: Boolean(item?.returnServiceAllowed),
     returnServicePrice: optionalNumber(item?.returnServicePrice),
@@ -542,7 +550,7 @@ function sortTariffs(project, tariffs) {
     return a.calculatorOrder - b.calculatorOrder;
   }).map((item, index) => ({ ...item, calculatorOrder: index }));
 }
-function processCalculation(project, json, exclusions = [], bestMethodMode = '', partnerCompanies = []) {
+function processCalculation(project, json, exclusions = [], bestExclusions = [], bestMethodMode = '', partnerCompanies = []) {
   if (!json.status || !Array.isArray(json.data) || !json.data.length) throw makeError('Нет доступных тарифов', 'NO_TARIFFS');
   const companyMaps = deliveryCompanyMaps(partnerCompanies);
   const configuredExclusions = Array.isArray(exclusions) ? exclusions : (project.defaultExclusions || []);
@@ -558,7 +566,12 @@ function processCalculation(project, json, exclusions = [], bestMethodMode = '',
   const mode = bestMethodMode || project.defaultBestMethod;
   const selectionPool = mode === 'all' ? allTariffs : allTariffs.filter(item => Number(item.deliveryMethod) === 1);
   if (!selectionPool.length) throw makeError(mode === 'all' ? 'Нет доступных тарифов' : 'Нет тарифов с методом дверь-дверь', 'NO_SELECTED_TARIFFS');
-  const candidates = selectionPool.filter(item => item.userPrice > 0 && !item.hasError);
+  const bestExcludedNames = new Set((Array.isArray(bestExclusions) ? bestExclusions : []).map(normalize));
+  const bestExcludedIds = new Set((Array.isArray(bestExclusions) ? bestExclusions : []).map(name => companyMaps.byName.get(normalize(name))).filter(Number.isFinite));
+  const transportPool = selectionPool.filter(item => isTransportBestCandidate(item)
+    && !bestExcludedNames.has(normalize(item.deliveryCompanyLabel))
+    && !bestExcludedIds.has(Number(item.deliveryCompany)));
+  const candidates = transportPool.filter(item => item.userPrice > 0 && !item.hasError);
   const cheapest = candidates.length ? candidates.reduce((best, item) => item.userPrice < best.userPrice ? item : best) : null;
   const companies = {};
   selectionPool.forEach(item => {
@@ -572,7 +585,7 @@ function processCalculation(project, json, exclusions = [], bestMethodMode = '',
     : Object.keys(companies);
   return {
     projectId: project.id, projectLabel: project.label, sortStrategy: project.sortStrategy,
-    best: cheapest || { deliveryCompanyLabel: 'Нет тарифов', tariffCaption: 'Все ТК исключены', maxPeriod: null, userPrice: 0, inputPrice: null, retailPrice: null, minPrice: null, discount: null, deliveryMethodLabel: '—', deliveryTypeLabel: '—' },
+    best: cheapest || { deliveryCompanyLabel: 'Нет транспортных тарифов', tariffCaption: 'Нет подходящего транспортного варианта', maxPeriod: null, userPrice: 0, inputPrice: null, retailPrice: null, minPrice: null, discount: null, deliveryMethodLabel: '—', deliveryTypeLabel: '—' },
     companies, targetOrder, allTariffs, bestMethodMode: mode, calculatedAt: new Date().toISOString()
   };
 }
@@ -593,14 +606,16 @@ async function calculate(payload) {
   const cargoHeight = stableNumber(payload.cargoHeight, 10);
   const cargoType = String(payload.cargoType || CARGO_TYPE).trim() || CARGO_TYPE;
   const exclusions = Array.isArray(payload.exclusions) ? [...payload.exclusions].sort() : [...(project.defaultExclusions || [])].sort();
+  const bestExclusions = Array.isArray(payload.bestExclusions) ? [...payload.bestExclusions].sort() : [];
   const bestMethodMode = payload.bestMethodMode || project.defaultBestMethod;
   const timeoutMs = Math.min(180000, Math.max(30000, Number(payload.timeoutMs) || 90000));
   const retries = Math.min(3, Math.max(0, payload.retries === undefined ? 2 : Number(payload.retries) || 0));
   const compactForOrderCreator = Boolean(payload.orderCreatorCompact);
-  const cacheKey = ['calc:v13', compactForOrderCreator ? 'order' : 'full', project.id, userId, senderCity, recipientCity, cargoType, cargoSeats, cargoWeight, cargoLength, cargoWidth, cargoHeight, bestMethodMode, exclusions.join(',')].join('|');
+  const cacheKey = ['calc:v15', compactForOrderCreator ? 'order' : 'full', project.id, userId, senderCity, recipientCity, cargoType, cargoSeats, cargoWeight, cargoLength, cargoWidth, cargoHeight, bestMethodMode, exclusions.join(','), bestExclusions.join(',')].join('|');
+  const calculationContext = { projectId: project.id, clientId: userId, signature: cacheKey };
   if (!payload.force) {
     const cached = getCache(cacheKey);
-    if (cached) return { ...cached, cached: true, cacheSource: 'calculator' };
+    if (cached) return { ...cached, cached: true, cacheSource: 'calculator', calculationContext };
   } else memoryCache.delete(cacheKey);
   return coalesce(cacheKey, async () => {
     const authToken = await getAuthToken(project.id, email, password);
@@ -621,8 +636,9 @@ async function calculate(payload) {
     const maxConcurrent = clampInteger(payload.maxConcurrentCalculations, MAX_CALCULATION_CONCURRENCY, 1, MAX_CALCULATION_CONCURRENCY);
     const json = await fetchJson(url.toString(), { method: 'GET' }, { retries, timeoutMs, limiter: calculationRequestLimiter, maxConcurrent });
     const result = compactForOrderCreator
-      ? compactOrderCreatorResult(processCalculation(project, json, exclusions, bestMethodMode, partnerCompanies))
-      : processCalculation(project, json, exclusions, bestMethodMode, partnerCompanies);
+      ? compactOrderCreatorResult(processCalculation(project, json, exclusions, bestExclusions, bestMethodMode, partnerCompanies))
+      : processCalculation(project, json, exclusions, bestExclusions, bestMethodMode, partnerCompanies);
+    result.calculationContext = calculationContext;
     putCache(cacheKey, result, 2 * 24 * 60 * 60 * 1000);
     return result;
   });

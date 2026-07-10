@@ -94,7 +94,7 @@
           <thead><tr>
             <th class="sticky-col row-number">#</th><th>Откуда</th><th>Распознано</th><th>Куда</th><th>Распознано</th>
             <th>Вес, кг</th><th>Мест</th><th>Длина</th><th>Ширина</th><th>Высота</th><th>Статус</th>
-            <th>Лучшая ТК</th><th>Тариф</th><th>Метод</th><th>Макс. срок</th><th>Цена</th><th>Вход</th><th>Скидка</th><th></th>
+            <th>Лучшая ТК</th><th>Тариф</th><th>Метод</th><th>Срок</th><th>Цена</th><th>Вход</th><th>Скидка</th><th></th>
           </tr></thead>
           <tbody id="tableBody"></tbody>
         </table>
@@ -177,6 +177,14 @@
                 <span id="partnerCompaniesStatus" class="settings-note"></span>
               </div>
               <div id="exclusionsList" class="checkbox-grid"></div>
+              <div class="best-exclusions-block">
+                <div class="exclusions-toolbar">
+                  <h4>Не выбирать как самый дешёвый <span class="help" data-tip="Отмеченные ТК останутся в таблице и аналитике, но не смогут стать лучшим тарифом строки.">?</span></h4>
+                  <button type="button" class="button ghost mini" data-best-exclusions-action="none">Снять</button>
+                </div>
+                <p class="settings-note">Используйте, когда предложения ТК нужно видеть, но автоматически рекомендовать её клиенту нельзя.</p>
+                <div id="bestExclusionsList" class="checkbox-grid"></div>
+              </div>
             </div>
           </section>
 
@@ -408,7 +416,7 @@
       </div>
       <div class="implementation-content">
         <section class="implementation-hero">
-          <div><span>1</span><b>Проект</b><p>Выберите КД, M1 или OPS в шапке.</p></div>
+          <div><span>1</span><b>Проект</b><p>Выберите КД, ME или OPS в шапке.</p></div>
           <div><span>2</span><b>Клиент</b><p>Введите ИНН и нажмите «Найти».</p></div>
           <div><span>3</span><b>Строки</b><p>Добавьте адреса и параметры груза.</p></div>
           <div><span>4</span><b>Результат</b><p>Нажмите «Рассчитать всё» и скачайте XLSX.</p></div>
@@ -416,7 +424,7 @@
 
         <details open class="implementation-section"><summary>Порядок действий для первого расчёта</summary>
           <div class="formula-list">
-            <p><b>1. Выберите проект</b> в левом переключателе шапки: КД, M1 или OPS. У каждого проекта свои логин, пароль, клиент и набор тарифов.</p>
+            <p><b>1. Выберите проект</b> в левом переключателе шапки: КД, ME или OPS. У каждого проекта свои логин, пароль, клиент и набор тарифов.</p>
             <p><b>2. Проверьте доступ</b> через popup расширения или кнопку «Настройки». После сохранения доступ должен быть проверен, иначе расчёт будет заблокирован.</p>
             <p><b>3. Выберите клиента</b>: введите ИНН в шапке и нажмите «Найти». Если клиент не найден, проверьте ИНН и выбранный проект.</p>
             <p><b>4. Добавьте направления</b>: нажмите «+ Строка», вставьте таблицу из Excel или загрузите файл через «Импорт».</p>
@@ -451,7 +459,7 @@
         </details>
 
         <details class="implementation-section"><summary>Разделение проектов</summary>
-          <p>КД, M1 Express и OPSPost имеют отдельные домены, логины, пароли, контрагентов, результаты и кэш городов. Общим остаётся только токен DaData. Для КД тарифы показываются в привычном порядке по ТК. Для ME и OPS ответ группируется по срочности, затем по максимальному сроку и цене.</p>
+          <p>КД, ME Express и OPSPost имеют отдельные домены, логины, пароли, контрагентов, результаты и кэш городов. Общим остаётся только токен DaData. Для КД тарифы показываются в привычном порядке по ТК. Для ME и OPS ответ группируется по срочности, затем по сроку и цене.</p>
         </details>
 
         <details class="implementation-section"><summary>Нагрузка, таймауты и повторы</summary>
