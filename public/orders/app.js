@@ -1796,11 +1796,19 @@
       void importFileObject(file);
     });
     document.addEventListener('dragover', event => {
-      if (isFileDrag(event)) event.preventDefault();
+      if (!isFileDrag(event)) return;
+      event.preventDefault();
+      if (!state.rows.length && !state.running && !state.uiBusy) document.body.classList.add('empty-drag-active');
     });
     document.addEventListener('drop', event => {
-      if (isFileDrag(event)) event.preventDefault();
+      if (!isFileDrag(event)) return;
+      event.preventDefault();
+      document.body.classList.remove('empty-drag-active');
+      if (state.rows.length || state.running || state.uiBusy || zone.contains(event.target)) return;
+      const file = firstDroppedFile(event);
+      if (file) void importFileObject(file);
     });
+    document.addEventListener('dragleave', event => { if (!event.relatedTarget) document.body.classList.remove('empty-drag-active'); });
   }
 
   function tariffDisplayName(item) {
@@ -2942,6 +2950,10 @@
   }
   function renderStats() {
     const snapshot = withIssueCache(() => collectWorkflowStats());
+    window.parent?.postMessage({
+      type: 'ops-toolkit-module-state', tool: 'orders', busy: Boolean(state.running || state.uiBusy),
+      summary: { total: state.rows.length, selected: snapshot.selected, selectedTotal: snapshot.selectedTotal, selectedTotalText: moneyText(snapshot.selectedTotal) }
+    }, location.origin);
     const attention = snapshot.attention;
     if (state.reviewMode && !attention.length) {
       state.reviewMode = false;
@@ -3036,7 +3048,7 @@
       return `<button class="button secondary mini pager-number ${page === state.page ? 'active' : ''}" type="button" data-page-number="${page}" ${page === state.page ? 'aria-current="page"' : ''}>${page + 1}</button>`;
     }).join('') : '';
     // В пагинации показываем страницы, но не выводим количество заказов, чтобы оно не путалось со счётчиками тарифов.
-    const html = rows.length
+    const html = rows.length > 10
       ? `<label class="pager-page-size">Заказов <select data-page-size>${pageSizeOptions}</select></label><button class="button secondary mini pager-arrow" type="button" data-page="prev" ${state.page <= 0 ? 'disabled' : ''} aria-label="Предыдущая страница">‹</button>${numbers ? `<span class="pager-numbers">${numbers}</span>` : ''}<span class="pager-info">Страница ${state.page + 1} / ${pages}</span><button class="button secondary mini pager-arrow" type="button" data-page="next" ${state.page >= pages - 1 ? 'disabled' : ''} aria-label="Следующая страница">›</button>`
       : '';
     [els.pageControlsTop, els.pageControlsBottom].filter(Boolean).forEach(node => { node.innerHTML = html; });
@@ -3588,7 +3600,7 @@
     els.orderRows.classList.toggle('rows-locked', locked);
     els.orderRows.setAttribute('aria-busy', locked ? 'true' : 'false');
     if (!state.rows.length) {
-      const html = '<div class="empty-state">Загрузите шаблон XLSX/CSV. После расчёта здесь появится выбор тарифов дверь-дверь.</div>';
+      const html = '<button class="empty-import-drop" type="button" data-empty-import><span class="empty-import-icon">⇧</span><b>Перетащите сюда XLSX или CSV</b><small>или нажмите, чтобы выбрать файл</small></button>';
       const key = markupCacheKey(html);
       if (lastRowsHtml !== key) {
         els.orderRows.innerHTML = html;
@@ -5640,6 +5652,10 @@
       }
     }, true);
     els.orderRows.addEventListener('click', event => {
+      if (event.target.closest('[data-empty-import]')) {
+        els.importFileInput?.click();
+        return;
+      }
       if (event.target.closest('[data-close-table-detail]')) {
         state.expandedRowId = '';
         saveStateSoon(250);
@@ -5915,6 +5931,7 @@
     runAction(action) {
       if (action === 'resolve') return resolveAddresses();
       if (action === 'calculate') return calculateRows();
+      if (action === 'stop') return stopCurrentOperation();
       if (action === 'create') return createOrders();
       if (action === 'import') return els.importFileInput?.click();
       if (action === 'template') return downloadTemplate();
@@ -5923,6 +5940,9 @@
       if (action === 'start-over') return resetWorkSession();
       if (action === 'help') return openHelpModal();
       if (action === 'settings') return openSettingsModal();
+    },
+    async clearLocalCache() {
+      if (state.cache?.clear) await state.cache.clear();
     }
   };
 

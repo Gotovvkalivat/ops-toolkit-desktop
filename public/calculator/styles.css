@@ -838,6 +838,9 @@ details[open] > summary::after { transform:rotate(90deg); }
 .chart-row.best .chart-bar { background:linear-gradient(90deg,var(--accent),#68d391); }
 .chart-value { min-width:75px; text-align:right; font-size:11px; font-weight:750; }
 .manager-controls { grid-template-columns:1fr 1fr 1.4fr auto; }
+.manager-columns-picker { grid-column:1 / -1; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--surface-2); }
+.manager-columns-picker summary { cursor:pointer; font-weight:700; }
+.manager-columns-picker .metric-checkboxes { max-height:170px; margin-top:8px; overflow:auto; }
 .manager-summary { display:flex; flex-wrap:wrap; gap:8px; padding:12px 18px; border-bottom:1px solid var(--line); }
 .manager-table { min-width:1650px; }
 .manager-table td { font-size:11px; }

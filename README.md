@@ -14,7 +14,15 @@
 - Ошибки получают `traceId`; безопасный журнал доступен в `/api/debug/requests`.
 - `/api/rpc` оставлен только для совместимости. Интерфейс использует читаемые REST-маршруты.
 
-## Запуск для разработки
+## Готовое Windows-приложение
+
+```powershell
+.\publish-desktop-app.cmd
+```
+
+Готовый файл запуска: `release\OPS-Toolkit-Desktop-App\OPS Toolkit.exe`. Он сам запускает C#-сервер в фоне и показывает интерфейс во встроенном окне WebView2: консоль и отдельная вкладка браузера не открываются. Папку `server` рядом с EXE перемещать или удалять нельзя.
+
+## Запуск сервера для разработки
 
 Нужен .NET 8 SDK:
 
@@ -36,13 +44,13 @@
 .\start-csharp.cmd --debug
 ```
 
-## Портативная сборка
+## Портативная серверная сборка
 
 ```powershell
 .\publish-portable.cmd
 ```
 
-Готовая версия появится в `release\OPS-Toolkit-Desktop`. Она включает .NET runtime и не требует Node.js.
+Готовая серверная версия появится в `release\OPS-Toolkit-Desktop`. Она включает .NET runtime и не требует Node.js. Этот вариант оставлен для отладки в обычном браузере.
 
 ## Диагностика
 
@@ -72,6 +80,7 @@
 
 ```powershell
 dotnet build .\csharp\OpsToolkit.Desktop.Server\OpsToolkit.Desktop.Server.csproj --no-restore
+dotnet build .\csharp\OpsToolkit.Desktop.App\OpsToolkit.Desktop.App.csproj --no-restore
 npm run check
 ```
 

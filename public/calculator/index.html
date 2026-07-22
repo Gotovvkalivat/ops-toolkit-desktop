@@ -376,6 +376,7 @@
           <label id="managerBeatMarketLabel">Дешевле рынка, % <span class="help" data-tip="Целевое преимущество относительно лучшей цены другой выбранной ТК на том же маршруте.">?</span><input id="managerBeatMarketInput" type="number" min="0" max="30" value="1"></label>
           <div class="analytics-auto-status align-bottom updated" data-tip="После короткой паузы таблица автоматически пересчитывается по текущим расчётам, фильтрам и выбранным тарифам. После обновления появится уведомление."><span class="status-dot"></span><div><b>Автообновление</b><small id="managerUpdatedAt">По текущим расчётам</small></div><button id="refreshManagerBtn" type="button" class="button mini secondary analytics-refresh-button">Обновить</button></div>
           <div class="toolbar-group align-bottom"><button id="copyManagerBtn" class="button secondary">Копировать</button><button id="downloadManagerXlsxBtn" class="button primary">XLSX</button></div>
+          <details class="manager-columns-picker"><summary>Столбцы таблицы <span id="managerColumnsCount"></span></summary><div id="managerColumnFields" class="metric-checkboxes"></div></details>
         </div>
         <div class="manager-summary" id="managerSummary"></div>
         <div class="tariffs-wrap"><table id="managerTable" class="tariffs-table manager-table"><thead id="managerTableHead"></thead><tbody id="managerTableBody"></tbody></table></div>

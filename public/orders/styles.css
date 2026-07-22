@@ -1839,6 +1839,26 @@ body.modal-open { overflow: hidden; }
   color: var(--muted);
   font-weight: 760;
 }
+
+.empty-import-drop {
+  width: min(620px, calc(100% - 40px));
+  min-height: 230px;
+  margin: clamp(24px, 8vh, 90px) auto;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  border: 2px dashed var(--line-strong);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+}
+.empty-import-drop:hover,
+body.empty-drag-active .empty-import-drop { border-color: var(--primary); background: color-mix(in srgb,var(--primary) 10%,var(--surface)); }
+.empty-import-drop b { font-size: 15px; }
+.empty-import-drop small { color: var(--muted); }
+.empty-import-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 7px; color: #fff; background: var(--primary); font-size: 24px; }
 .confirm-modal {
   position: fixed;
   inset: 0;

@@ -13,8 +13,10 @@ const TOOLS = {
     title: 'Массовый расчёт доставки', hint: 'Тарифы, сравнение ТК и аналитика', frame: 'calculatorFrame', clientKey: 'calculatorClient',
     settingsTitle: 'Массовый расчёт', settingsHint: 'Лучший тариф, нагрузка, выгрузка и отображение.',
     actions: [
+      ['add-row', 'Добавить строку', 'plus', 'secondary', true], ['paste', 'Вставить из буфера', 'clipboard', 'secondary', true],
       ['template', 'Шаблон XLSX', 'file', 'secondary', true], ['example', 'Добавить пример', 'sparkles', 'secondary', true],
-      ['import', 'Загрузить', 'upload', 'secondary'], ['calculate', 'Рассчитать всё', 'calculator', 'primary']
+      ['import', 'Загрузить файл', 'upload', 'secondary'], ['toggle-auto', 'Авторасчёт', 'auto', 'secondary', true],
+      ['calculate', 'Рассчитать всё', 'calculator', 'primary']
     ]
   },
   orders: {
@@ -34,6 +36,9 @@ const ICONS = {
   sparkles: '<path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3Z"/><path d="m18 14 .8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8L18 14Z"/>',
   table: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16M15 4v16"/>',
   auto: '<path d="M20 7h-5V2M4 17h5v5"/><path d="M5.6 8A8 8 0 0 1 18 5l2 2M18.4 16A8 8 0 0 1 6 19l-2-2"/>'
+  ,plus: '<path d="M12 5v14M5 12h14"/>',
+  clipboard: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M8 9h8M8 13h8M8 17h5"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>'
 };
 const LOCAL_ENDPOINTS = {
   auth: '/api/auth/login', deliveryCompanies: '/api/reference/delivery-companies', searchUser: '/api/clients/search',
@@ -48,14 +53,19 @@ const els = {
   settingsButton: $('#settingsButton'), helpButton: $('#helpButton'), themeButton: $('#themeButton'),
   settingsDrawer: $('#settingsDrawer'), settingsTitle: $('#settingsTitle'), settingsSubtitle: $('#settingsSubtitle'), settingsProjectLabel: $('#settingsProjectLabel'),
   sectionSettingsTitle: $('#sectionSettingsTitle'), sectionSettingsHint: $('#sectionSettingsHint'), moduleSettingsHost: $('#moduleSettingsHost'),
-  emailInput: $('#emailInput'), passwordInput: $('#passwordInput'), dadataInput: $('#dadataInput'), passwordToggle: $('#passwordToggle'),
+  emailInput: $('#emailInput'), passwordInput: $('#passwordInput'), dadataInput: $('#dadataInput'), passwordToggle: $('#passwordToggle'), dadataToggle: $('#dadataToggle'),
   authStatus: $('#authStatus'), saveSettingsButton: $('#saveSettingsButton'), debugModeInput: $('#debugModeInput'),
-  frameLoading: $('#frameLoading'), toastRegion: $('#toastRegion')
+  frameLoading: $('#frameLoading'), toastRegion: $('#toastRegion'), appTooltip: $('#appTooltip'),
+  ordersNavbarSummary: $('#ordersNavbarSummary'), ordersSelectedCount: $('#ordersSelectedCount'), ordersSelectedTotal: $('#ordersSelectedTotal'),
+  refreshCacheButton: $('#refreshCacheButton'), clearCacheButton: $('#clearCacheButton'), cacheStatus: $('#cacheStatus')
 };
+els.confirmDialog = $('#confirmDialog'); els.confirmTitle = $('#confirmTitle'); els.confirmMessage = $('#confirmMessage'); els.confirmAcceptButton = $('#confirmAcceptButton');
 const state = loadShellState();
 let authBusy = false;
 let clientSearchTimer = 0;
 let clientSearchGeneration = 0;
+const moduleState = { calculator: { busy: false }, orders: { busy: false, summary: {} } };
+let activeAction = '';
 
 function readStorageState() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch { return {}; } }
 function writeStorageState(value) { localStorage.setItem(STORAGE_KEY, JSON.stringify(value || {})); window.dispatchEvent(new CustomEvent('ops-toolkit-storage-change')); }
@@ -74,9 +84,13 @@ function ensureFrame(tool) { const frame = frameFor(tool); if (!frame.src && fra
 function projectCredentials(credentials = readCredentials()) { credentials.projects ||= {}; credentials.projects[state.project] ||= {}; return credentials.projects[state.project]; }
 function activeClient(credentials = readCredentials()) { return projectCredentials(credentials)[TOOLS[state.tool].clientKey] || {}; }
 function projectReady(projectId, credentials = readCredentials()) { const project = credentials.projects?.[projectId] || {}; return Boolean(project.authChecked && project.email && project.password && credentials.tokenDaData); }
+function toolBusy(tool = state.tool) { return Boolean(moduleState[tool]?.busy || moduleApi(tool)?.isBusy?.()); }
+function anyModuleBusy() { return Object.keys(TOOLS).some(tool => toolBusy(tool)); }
+function guardBusy(message = 'Сначала остановите текущую операцию') { if (!anyModuleBusy()) return false; toast(message, 'error'); return true; }
 
 function setActiveTool(tool, options = {}) {
   if (!TOOLS[tool]) return;
+  if (tool !== state.tool && guardBusy('Раздел нельзя переключить во время расчёта или создания заказов')) return;
   state.tool = tool; saveShellState(); ensureFrame(tool);
   document.querySelectorAll('.tool-frame').forEach(frame => frame.classList.toggle('active', frame.id === TOOLS[tool].frame));
   els.toolTabs.forEach(button => { const active = button.dataset.tool === tool; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
@@ -85,12 +99,14 @@ function setActiveTool(tool, options = {}) {
   els.settingsTitle.textContent = `Настройки · ${definition.settingsTitle}`; els.settingsSubtitle.textContent = `Проект ${PROJECTS[state.project].short} · доступ и параметры раздела`;
   els.sectionSettingsTitle.textContent = definition.settingsTitle; els.sectionSettingsHint.textContent = definition.settingsHint;
   renderToolActions(); renderClient();
+  renderOrdersSummary();
   if (!els.settingsDrawer.hidden) renderSettingsForm();
   if (!options.skipHash) history.replaceState(null, '', `#${tool}`);
 }
 
 function setProject(projectId, options = {}) {
   if (!PROJECTS[projectId]) return;
+  if (projectId !== state.project && guardBusy('Проект нельзя переключить во время расчёта или создания заказов')) return;
   state.project = projectId; document.documentElement.dataset.project = projectId;
   const credentials = readCredentials(); credentials.activeProject = projectId; credentials.projects ||= {}; writeCredentials(credentials);
   [...els.projectTabs.querySelectorAll('[data-project]')].forEach(button => button.classList.toggle('active', button.dataset.project === projectId));
@@ -104,15 +120,27 @@ function renderProjectReadiness() {
   const credentials = readCredentials();
   [...els.projectTabs.querySelectorAll('[data-project]')].forEach(button => {
     const ready = projectReady(button.dataset.project, credentials);
-    button.classList.toggle('ready', ready); button.title = ready ? `${PROJECTS[button.dataset.project].label}: доступ проверен` : `${PROJECTS[button.dataset.project].label}: требуется настройка`;
+    button.classList.toggle('ready', ready); button.dataset.tooltip = ready ? `${PROJECTS[button.dataset.project].label}: доступ проверен` : `${PROJECTS[button.dataset.project].label}: требуется настройка`;
   });
 }
 function renderToolActions() {
   const moduleSettings = moduleApi()?.getSettings?.() || {};
-  els.toolActions.innerHTML = TOOLS[state.tool].actions.map(([action,label,icon,tone,compact]) => {
+  const busy = toolBusy();
+  const stopLabel = activeAction === 'create' ? 'Остановить создание' : activeAction === 'resolve' ? 'Остановить распознавание' : 'Остановить расчёт';
+  const actions = busy ? [['stop', stopLabel, 'stop', 'danger']] : TOOLS[state.tool].actions;
+  els.toolActions.innerHTML = actions.map(([action,label,icon,tone,compact]) => {
     const active = action === 'toggle-auto' && moduleSettings.autoCalculate;
-    return `<button class="button ${tone} ${compact ? 'compact-action' : ''} ${active ? 'active' : ''}" type="button" data-tool-action="${action}" title="${label}${active ? ': включён' : ''}" aria-label="${label}">${svg(icon)}${compact ? '' : `<span class="action-label">${label}</span>`}</button>`;
+    const disabled = activeAction && action !== 'stop';
+    return `<button class="button ${tone} ${compact ? 'compact-action' : ''} ${active ? 'active' : ''}" type="button" data-tool-action="${action}" data-tooltip="${label}${active ? ': включён' : ''}" aria-label="${label}" ${disabled ? 'disabled' : ''}>${svg(icon)}${compact ? '' : `<span class="action-label">${label}</span>`}</button>`;
   }).join('');
+}
+function renderOrdersSummary() {
+  const visible = state.tool === 'orders';
+  els.ordersNavbarSummary.hidden = !visible;
+  if (!visible) return;
+  const summary = moduleState.orders.summary || {};
+  els.ordersSelectedCount.textContent = String(summary.selected || 0);
+  els.ordersSelectedTotal.textContent = summary.selectedTotalText || '0 ₽';
 }
 function renderClient() {
   const client = activeClient();
@@ -142,6 +170,11 @@ function moduleSettingsMarkup(settings) {
   const companies = Array.isArray(settings.companies) ? settings.companies : [];
   const best = new Set(settings.bestExclusions || []), hidden = new Set(settings.exclusions || []);
   const companyChecks = (set, kind) => companies.length ? companies.map(company => `<label class="choice-check"><input type="checkbox" data-module-list="${kind}" value="${escapeHtml(company)}" ${checked(set.has(company))}><span>${escapeHtml(company)}</span></label>`).join('') : '<span class="empty-note">Список появится после авторизации или первого расчёта.</span>';
+  const definitions = settings.definitions || {};
+  const exportChecks = (kind, fields, selected) => {
+    const picked = new Set(selected || []);
+    return (fields || []).map(field => `<label class="choice-check"><input type="checkbox" data-module-list="${kind}" value="${escapeHtml(field.key)}" ${checked(picked.has(field.key))}><span>${escapeHtml(field.label)}</span></label>`).join('');
+  };
   return `
     <div class="module-settings-grid">
       <label class="field"><span>Лучший тариф</span><select data-module-setting="bestMethodMode">${settingsOptions([['door','Только дверь-дверь'],['all','Любой метод доставки']], settings.bestMethodMode)}</select></label>
@@ -151,8 +184,10 @@ function moduleSettingsMarkup(settings) {
       <label class="field"><span>Повторов после ошибки</span><select data-module-setting="calcRetries">${settingsOptions([[0,'Не повторять'],[1,'1 повтор'],[2,'2 повтора'],[3,'3 повтора']], settings.calcRetries)}</select></label>
       <label class="field"><span>Плотность интерфейса</span><select data-module-setting="density">${settingsOptions([['micro','Очень компактная'],['compact','Компактная'],['medium','Обычная'],['spacious','Свободная']], settings.density)}</select></label>
     </div>
-    <div class="settings-choice-group"><h4>Не выбирать как самый дешёвый</h4><p>ТК останется в результатах, но не станет рекомендацией строки.</p><div class="choice-grid">${companyChecks(best,'bestExclusions')}</div></div>
-    <details class="settings-choice-group"><summary>Скрыть ТК из расчёта</summary><p>Эти ТК полностью исчезнут из результатов и аналитики.</p><div class="choice-grid">${companyChecks(hidden,'exclusions')}</div></details>
+    <div class="settings-choice-group"><h4>Не включать ТК в расчёты</h4><p>Список обновляется из справочника текущего проекта.</p><div class="choice-toolbar"><button class="button secondary" type="button" data-settings-action="refresh-companies">Обновить список ТК</button><button class="button ghost" type="button" data-settings-action="company-defaults">По умолчанию</button><button class="button ghost" type="button" data-settings-action="company-none">Включить все</button></div><div class="choice-grid">${companyChecks(hidden,'exclusions')}</div></div>
+    <div class="settings-choice-group"><h4>Не выбирать как самый дешёвый</h4><p>ТК останется в результатах, но не станет рекомендацией строки.</p><div class="choice-toolbar"><button class="button ghost" type="button" data-settings-action="best-none">Снять все</button></div><div class="choice-grid">${companyChecks(best,'bestExclusions')}</div></div>
+    <div class="settings-subsection"><h4>Основной лист выгрузки</h4><div class="module-settings-grid"><label class="field"><span>Набор полей</span><select data-export-preset="main">${settingsOptions([['compact','Краткая'],['finance','Финансы'],['full','Полная'],['custom','Своя']], settings.mainExportPreset)}</select></label><label class="field"><span>Порядок таблицы обзора</span><select data-module-setting="overviewColumnOrder">${settingsOptions([['logistics','Логистика'],['sales','Продажи'],['finance','Финансы']], settings.overviewColumnOrder)}</select></label></div><details><summary>Поля основного листа</summary><div class="choice-toolbar"><button class="button ghost" type="button" data-settings-action="main-all">Выбрать все</button><button class="button ghost" type="button" data-settings-action="main-none">Снять</button></div><div class="field-selector">${exportChecks('mainExportFields',definitions.mainFields,settings.mainExportFields)}</div></details><label class="switch-field"><input type="checkbox" data-module-setting="exportMainCompanyColumns" ${checked(settings.exportMainCompanyColumns)}><span>Добавлять лучшие тарифы каждой ТК на основной лист</span></label></div>
+    <div class="settings-subsection"><h4>Тарифные листы</h4><div class="module-settings-grid"><label class="field"><span>Набор полей</span><select data-export-preset="tariff">${settingsOptions([['compact','Краткая'],['finance','Финансы'],['logistics','Логистика'],['full','Полная'],['custom','Своя']], settings.tariffExportPreset)}</select></label><label class="field"><span>Формат строк</span><select data-module-setting="companySheetLayout">${settingsOptions([['wide','Запрос в строке'],['long','Тариф в строке']], settings.companySheetLayout)}</select></label></div><details><summary>Поля тарифов</summary><div class="choice-toolbar"><button class="button ghost" type="button" data-settings-action="tariff-all">Выбрать все</button><button class="button ghost" type="button" data-settings-action="tariff-none">Снять</button></div><div class="field-selector">${exportChecks('tariffExportFields',definitions.tariffFields,settings.tariffExportFields)}</div></details></div>
     <div class="switch-list">
       <label class="switch-field"><input type="checkbox" data-module-setting="showServiceInfo" ${checked(settings.showServiceInfo)}><span>Показывать подробности услуг</span></label>
       <label class="switch-field"><input type="checkbox" data-module-setting="exportCompanySheets" ${checked(settings.exportCompanySheets)}><span>Отдельный лист каждой ТК в XLSX</span></label>
@@ -168,8 +203,37 @@ function renderModuleSettings() {
 function collectModuleSettings() {
   const result = {};
   els.moduleSettingsHost.querySelectorAll('[data-module-setting]').forEach(input => { result[input.dataset.moduleSetting] = input.type === 'checkbox' ? input.checked : input.value; });
+  els.moduleSettingsHost.querySelectorAll('[data-export-preset]').forEach(input => { result[`${input.dataset.exportPreset}ExportPreset`] = input.value; });
   els.moduleSettingsHost.querySelectorAll('[data-module-list]').forEach(input => { const key = input.dataset.moduleList; result[key] ||= []; if (input.checked) result[key].push(input.value); });
   return result;
+}
+
+function setModuleChecks(kind, values) {
+  const selected = new Set(values || []);
+  els.moduleSettingsHost.querySelectorAll(`[data-module-list="${kind}"]`).forEach(input => { input.checked = selected.has(input.value); });
+}
+async function handleSettingsAction(action, button) {
+  const settings = moduleApi()?.getSettings?.();
+  if (!settings) return;
+  if (action === 'refresh-companies') {
+    button.disabled = true;
+    try { await moduleApi()?.refreshCompanies?.(true); renderModuleSettings(); toast('Список ТК обновлён', 'success'); }
+    catch (error) { toast('Не удалось обновить список ТК', 'error', error.message); }
+    finally { button.disabled = false; }
+    return;
+  }
+  if (action === 'company-defaults') setModuleChecks('exclusions', settings.definitions?.defaultExclusions || []);
+  if (action === 'company-none') setModuleChecks('exclusions', []);
+  if (action === 'best-none') setModuleChecks('bestExclusions', []);
+  if (action === 'main-all') { setModuleChecks('mainExportFields', (settings.definitions?.mainFields || []).map(field => field.key)); const select=els.moduleSettingsHost.querySelector('[data-export-preset="main"]'); if(select)select.value='full'; }
+  if (action === 'main-none') { setModuleChecks('mainExportFields', []); const select=els.moduleSettingsHost.querySelector('[data-export-preset="main"]'); if(select)select.value='custom'; }
+  if (action === 'tariff-all') { setModuleChecks('tariffExportFields', (settings.definitions?.tariffFields || []).map(field => field.key)); const select=els.moduleSettingsHost.querySelector('[data-export-preset="tariff"]'); if(select)select.value='full'; }
+  if (action === 'tariff-none') { setModuleChecks('tariffExportFields', []); const select=els.moduleSettingsHost.querySelector('[data-export-preset="tariff"]'); if(select)select.value='custom'; }
+}
+function applyExportPreset(kind, value) {
+  const settings = moduleApi()?.getSettings?.();
+  const values = settings?.definitions?.[`${kind}Presets`]?.[value];
+  if (Array.isArray(values)) setModuleChecks(`${kind}ExportFields`, values);
 }
 
 function renderSettingsForm() {
@@ -205,7 +269,9 @@ async function saveAndCheckCredentials() {
     const result = await rpc('auth', payload); if (!result?.token) throw new Error('ЛК не вернул токен авторизации');
     const credentials = readCredentials(); credentials.activeProject = state.project; credentials.tokenDaData = els.dadataInput.value.trim();
     const project = projectCredentials(credentials); project.email = payload.email; project.password = payload.password; project.authChecked = true; writeCredentials(credentials);
-    notifyModulesCredentialsChanged(); renderSettingsForm(); renderClient(); renderToolActions(); toast('Настройки сохранены, доступ проверен', 'success');
+    notifyModulesCredentialsChanged();
+    await moduleApi('calculator')?.refreshCompanies?.(true).catch(() => {});
+    renderSettingsForm(); renderClient(); renderToolActions(); toast('Настройки сохранены, доступ проверен', 'success');
   } catch (error) {
     const credentials = readCredentials(), project = projectCredentials(credentials); project.authChecked = false; writeCredentials(credentials);
     els.authStatus.className = 'inline-status error'; els.authStatus.lastChild.textContent = error.message; toast('Не удалось проверить доступ', 'error', error.message);
@@ -229,8 +295,28 @@ async function findClient(options = {}) {
 }
 function scheduleClientSearch() { clearTimeout(clientSearchTimer); const inn = els.clientInnInput.value; if (/^\d{10}$|^\d{12}$/.test(inn)) clientSearchTimer = setTimeout(() => void findClient({silent:true}), 550); }
 function notifyModulesCredentialsChanged() { for (const tool of Object.keys(TOOLS)) moduleApi(tool)?.refreshCredentials?.(); }
-function runToolAction(action) { const api = moduleApi(); if (!api?.runAction) return toast('Раздел ещё загружается','error'); Promise.resolve(api.runAction(action)).then(result => { if (action === 'toggle-auto') toast(result ? 'Авторасчёт включён' : 'Авторасчёт выключен','success'); renderToolActions(); }).catch(error => toast('Не удалось выполнить действие','error',error.message)); }
-function openSettings() { renderSettingsForm(); els.settingsDrawer.hidden = false; document.body.classList.add('settings-open'); requestAnimationFrame(() => els.emailInput.focus()); }
+async function runToolAction(action) {
+  const api = moduleApi();
+  if (!api?.runAction) return toast('Раздел ещё загружается','error');
+  if (activeAction && action !== 'stop') return;
+  if (action === 'stop') {
+    api.runAction('stop'); moduleState[state.tool].busy = false; activeAction = ''; renderToolActions(); return;
+  }
+  const operation = ['calculate','create','resolve'].includes(action);
+  if (operation) { activeAction = action; moduleState[state.tool].busy = true; renderToolActions(); renderBusyLocks(); }
+  try {
+    const result = await Promise.resolve(api.runAction(action));
+    if (action === 'toggle-auto') toast(result ? 'Авторасчёт включён' : 'Авторасчёт выключен','success');
+  } catch (error) { toast('Не удалось выполнить действие','error',error.message); }
+  finally { if (operation) { activeAction = ''; moduleState[state.tool].busy = Boolean(api.isBusy?.()); renderBusyLocks(); } renderToolActions(); }
+}
+function renderBusyLocks() {
+  const busy = anyModuleBusy();
+  els.toolTabs.forEach(button => { button.disabled = busy && button.dataset.tool !== state.tool; });
+  [...els.projectTabs.querySelectorAll('[data-project]')].forEach(button => { button.disabled = busy && button.dataset.project !== state.project; });
+  els.clientInnInput.disabled = busy; els.findClientButton.disabled = busy;
+}
+function openSettings() { renderSettingsForm(); els.settingsDrawer.hidden = false; document.body.classList.add('settings-open'); requestAnimationFrame(() => els.emailInput.focus()); void moduleApi('calculator')?.refreshCompanies?.(false).then(() => { if (!els.settingsDrawer.hidden && state.tool === 'calculator') renderModuleSettings(); }); }
 function closeSettings() { els.settingsDrawer.hidden = true; document.body.classList.remove('settings-open'); }
 function showHelp() { const api = moduleApi(); if (api?.openHelp) api.openHelp(); else toast('Раздел ещё загружается','error'); }
 function toggleTheme() { state.theme = state.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = state.theme; saveShellState(); for (const tool of Object.keys(TOOLS)) moduleApi(tool)?.setTheme?.(state.theme); }
@@ -242,19 +328,47 @@ function configureEmbeddedFrame(frame, tool) {
     const doc = frame.contentDocument; if (!doc) return; doc.documentElement.dataset.desktopEmbedded = 'true';
     doc.querySelector('style[data-desktop-shell]')?.remove(); const style = doc.createElement('style'); style.dataset.desktopShell = 'true';
     style.textContent = tool === 'calculator'
-      ? `.topbar{display:none!important}.shell{padding-top:0!important;min-height:100vh!important}.settings-panel{display:none!important}`
-      : `.app-header{display:none!important}.app-shell{height:100vh!important;min-height:100vh!important;padding-top:0!important}.workspace-top{top:0!important}.side-panel>.panel-section:first-child,.settings-modal-panel{display:none!important}.action-modal{z-index:460!important}.confirm-modal{z-index:520!important}`;
+      ? `.topbar,.primary-toolbar{display:none!important}.shell{padding-top:0!important;min-height:100vh!important}.settings-panel{display:none!important}`
+      : `html,body{height:100%!important;overflow:hidden!important}.app-header{display:none!important}.app-shell{height:100%!important;min-height:0!important;padding-top:0!important;align-items:stretch!important}.workspace-top{top:0!important}.side-panel,.workspace,.sidebar-resizer{height:100%!important;min-height:0!important}.side-panel{overflow:auto!important}.side-panel>.panel-section:first-child,.settings-modal-panel{display:none!important}.action-modal{z-index:460!important}.confirm-modal{z-index:520!important}`;
     doc.head.append(style); frame.contentWindow?.postMessage({type:'ops-toolkit-shell',projectId:state.project,theme:state.theme},location.origin);
   } catch { /* frame is still initializing */ }
 }
 async function checkServer() { try { const response=await fetch('/api/health',{cache:'no-store'}), data=await response.json(); if(!response.ok||!data.ok)throw new Error(); els.serverStatus.textContent='Готов к работе'; els.serverStatus.className='ready'; } catch { els.serverStatus.textContent='Нет связи'; els.serverStatus.className='error'; } }
+
+async function refreshCacheStatus() {
+  els.refreshCacheButton.disabled = true;
+  try {
+    const response = await fetch('/api/health', { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error('Сервер не ответил');
+    els.cacheStatus.textContent = `Серверный кеш: ${data.cache?.entries || 0} записей, расчётов: ${data.cache?.calculations || 0}, клиентов: ${data.cache?.clients || 0}.`;
+  } catch (error) { els.cacheStatus.textContent = error.message; }
+  finally { els.refreshCacheButton.disabled = false; }
+}
+async function clearUnifiedCache() {
+  if (!(await askConfirmation('Очистить кеш?', 'Будет очищен кеш локального сервера и обоих разделов. Сохранённые строки останутся на месте.', 'Очистить'))) return;
+  els.clearCacheButton.disabled = true;
+  try {
+    await Promise.all([rpc('clearCache', { category: 'all', projectId: '' }), ...Object.keys(TOOLS).map(tool => Promise.resolve(moduleApi(tool)?.clearLocalCache?.('all')))]);
+    toast('Кеш приложения очищен', 'success'); await refreshCacheStatus();
+  } catch (error) { toast('Не удалось очистить кеш', 'error', error.message); }
+  finally { els.clearCacheButton.disabled = false; }
+}
+function askConfirmation(title, message, acceptText = 'Продолжить') {
+  els.confirmTitle.textContent = title; els.confirmMessage.textContent = message; els.confirmAcceptButton.textContent = acceptText; els.confirmDialog.hidden = false;
+  return new Promise(resolve => {
+    const finish = value => { els.confirmDialog.hidden = true; els.confirmDialog.removeEventListener('click', onClick); resolve(value); };
+    const onClick = event => { const button = event.target.closest('[data-confirm-value]'); if (button) finish(button.dataset.confirmValue === 'true'); };
+    els.confirmDialog.addEventListener('click', onClick);
+  });
+}
 
 function bindEvents() {
   els.toolTabs.forEach(button=>button.addEventListener('click',()=>setActiveTool(button.dataset.tool)));
   els.projectTabs.addEventListener('click',event=>{const button=event.target.closest('[data-project]');if(button)setProject(button.dataset.project);});
   els.toolActions.addEventListener('click',event=>{const button=event.target.closest('[data-tool-action]');if(button)runToolAction(button.dataset.toolAction);});
   els.findClientButton.addEventListener('click',()=>void findClient());
-  els.clientInnInput.addEventListener('beforeinput',event=>{if(moduleApi()?.isBusy?.()){event.preventDefault();toast('Дождитесь завершения текущей операции','error');}});
+  els.clientInnInput.addEventListener('beforeinput',event=>{if(anyModuleBusy()){event.preventDefault();toast('Дождитесь завершения текущей операции','error');}});
   els.clientInnInput.addEventListener('input',()=>{
     els.clientInnInput.value=els.clientInnInput.value.replace(/\D/g,'').slice(0,12); const credentials=readCredentials(), project=projectCredentials(credentials);
     project[TOOLS[state.tool].clientKey]={inn:els.clientInnInput.value,userId:'',userDisplay:''};writeCredentials(credentials);renderClient();scheduleClientSearch();
@@ -262,8 +376,17 @@ function bindEvents() {
   els.clientInnInput.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();void findClient();}});
   els.settingsButton.addEventListener('click',openSettings); els.helpButton.addEventListener('click',showHelp); els.themeButton.addEventListener('click',toggleTheme);
   els.passwordToggle.addEventListener('click',()=>{const visible=els.passwordInput.type==='text';els.passwordInput.type=visible?'password':'text';els.passwordToggle.textContent=visible?'Показать':'Скрыть';});
+  els.dadataToggle.addEventListener('click',()=>{const visible=els.dadataInput.type==='text';els.dadataInput.type=visible?'password':'text';els.dadataToggle.textContent=visible?'Показать':'Скрыть';});
   [els.emailInput,els.passwordInput,els.dadataInput].forEach(input=>input.addEventListener('input',persistCredentialsDraft));
+  els.moduleSettingsHost.addEventListener('click',event=>{const button=event.target.closest('[data-settings-action]');if(button)void handleSettingsAction(button.dataset.settingsAction,button);});
+  els.moduleSettingsHost.addEventListener('change',event=>{
+    const preset=event.target.closest('[data-export-preset]');
+    if(preset)applyExportPreset(preset.dataset.exportPreset,preset.value);
+    const field=event.target.closest('[data-module-list="mainExportFields"],[data-module-list="tariffExportFields"]');
+    if(field){const kind=field.dataset.moduleList.startsWith('main')?'main':'tariff';const select=els.moduleSettingsHost.querySelector(`[data-export-preset="${kind}"]`);if(select)select.value='custom';}
+  });
   els.saveSettingsButton.addEventListener('click',saveAndCheckCredentials); els.debugModeInput.addEventListener('change',()=>{state.debug=els.debugModeInput.checked;saveShellState();});
+  els.refreshCacheButton.addEventListener('click',()=>void refreshCacheStatus()); els.clearCacheButton.addEventListener('click',()=>void clearUnifiedCache());
   document.querySelectorAll('[data-close-settings]').forEach(button=>button.addEventListener('click',closeSettings));
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!els.settingsDrawer.hidden)closeSettings();});
   window.addEventListener('hashchange',()=>{const tool=location.hash.slice(1);if(TOOLS[tool])setActiveTool(tool,{skipHash:true});});
@@ -271,8 +394,27 @@ function bindEvents() {
     if(event.origin!==location.origin)return;
     if(event.data?.type==='ops-toolkit-ready'){els.frameLoading.hidden=true;configureEmbeddedFrame(frameFor(event.data.tool),event.data.tool);setProject(state.project,{silent:true});if(event.data.tool===state.tool)renderToolActions();}
     if(event.data?.type==='ops-toolkit-client-cleared'){void Promise.resolve(moduleApi(event.data.tool)?.refreshCredentials?.()).then(()=>renderClient());}
+    if(event.data?.type==='ops-toolkit-module-state'&&TOOLS[event.data.tool]){moduleState[event.data.tool]={...moduleState[event.data.tool],busy:Boolean(event.data.busy),summary:event.data.summary||moduleState[event.data.tool].summary};if(!event.data.busy&&event.data.tool===state.tool)activeAction='';renderBusyLocks();renderOrdersSummary();renderToolActions();}
   });
   for(const [tool,definition] of Object.entries(TOOLS)){const frame=document.getElementById(definition.frame);frame.addEventListener('load',()=>{configureEmbeddedFrame(frame,tool);els.frameLoading.hidden=true;});}
 }
-function init() { document.documentElement.dataset.theme=state.theme;document.documentElement.dataset.project=state.project;bindEvents();const hashTool=location.hash.slice(1);setActiveTool(TOOLS[hashTool]?hashTool:state.tool,{skipHash:false});setProject(state.project,{silent:true});renderSettingsForm();void checkServer(); }
+function initTooltips() {
+  let target = null;
+  const hide = () => { target = null; els.appTooltip.hidden = true; };
+  const show = element => {
+    const message = element?.dataset.tooltip || element?.getAttribute('title') || element?.dataset.nativeTitle || element?.getAttribute('aria-label');
+    if (!message) return;
+    if (element.hasAttribute('title')) { element.dataset.nativeTitle = element.title; element.removeAttribute('title'); }
+    target = element; els.appTooltip.textContent = message; els.appTooltip.hidden = false;
+    const rect = element.getBoundingClientRect(), tip = els.appTooltip.getBoundingClientRect();
+    const left = Math.min(innerWidth - tip.width - 8, Math.max(8, rect.left + rect.width / 2 - tip.width / 2));
+    const top = rect.bottom + tip.height + 8 < innerHeight ? rect.bottom + 7 : rect.top - tip.height - 7;
+    els.appTooltip.style.left = `${left}px`; els.appTooltip.style.top = `${Math.max(8,top)}px`;
+  };
+  document.addEventListener('pointerover',event=>{const element=event.target.closest('[data-tooltip],[title],[aria-label]');if(element&&element!==target)show(element);});
+  document.addEventListener('pointerout',event=>{if(target&&!target.contains(event.relatedTarget))hide();});
+  document.addEventListener('focusin',event=>show(event.target.closest('[data-tooltip],[title],[aria-label]')));
+  document.addEventListener('focusout',hide); window.addEventListener('scroll',hide,true);
+}
+function init() { document.documentElement.dataset.theme=state.theme;document.documentElement.dataset.project=state.project;bindEvents();initTooltips();const hashTool=location.hash.slice(1);setActiveTool(TOOLS[hashTool]?hashTool:state.tool,{skipHash:false});setProject(state.project,{silent:true});renderSettingsForm();renderBusyLocks();void checkServer(); }
 init();

@@ -127,7 +127,7 @@
     mainExportPreset:'compact', tariffExportPreset:'compact', mainExportFields:[...MAIN_EXPORT_PRESETS.compact], tariffExportFields:[...TARIFF_EXPORT_PRESETS.compact],
     advancedTariffView:false, showServiceInfo:false, theme:'system', density:'medium', overviewColumnOrder:'logistics',
     comparisonMetrics:[...COMPARISON_PRESETS.sale], comparisonTariffMode:'cheapest', comparisonPeriodMax:'', salesFloorMode:'strict', salesFloorPercent:10, salesBeatMarketPct:1,
-    managerView:'recommendations', managerBaseCompany:'cheapest', managerTariffMode:'cheapest', managerPeriodMax:'', managerMethod:'', managerPreset:'custom', managerFloorMode:'strict', managerFloorPercent:10, managerBeatMarketPct:1,
+    managerView:'recommendations', managerBaseCompany:'cheapest', managerTariffMode:'cheapest', managerPeriodMax:'', managerMethod:'', managerPreset:'custom', managerFloorMode:'strict', managerFloorPercent:10, managerBeatMarketPct:1, managerVisibleColumns:[],
     matrixDiscountMode:'', analyticsFiltersCollapsed:false, matrixMethodByProject:{kd:'',me:'',ops:''},
     analyticsMethodByProject:{kd:'',me:'',ops:''}, analyticsSelections:{kd:{},me:{},ops:{}}
   };
@@ -1197,6 +1197,7 @@
     const rows = state.rows.filter(row => row.senderQuery.trim() || row.recipientQuery.trim());
     if (!rows.length) { toast('Нет заполненных строк', 'error'); return; }
     state.running = true;
+    window.parent?.postMessage({type:'ops-toolkit-module-state',tool:'calculator',busy:true},location.origin);
     const generation = ++state.runGeneration;
     els.calculateAllBtn.disabled = true;
     els.stopBtn.classList.remove('hidden');
@@ -1215,6 +1216,7 @@
     } finally {
       if (generation === state.runGeneration) {
         state.running = false;
+        window.parent?.postMessage({type:'ops-toolkit-module-state',tool:'calculator',busy:false},location.origin);
         els.stopBtn.classList.add('hidden');
         refreshSummary();
         updateConnectionBadge();
@@ -1233,6 +1235,7 @@
   }
   function stopCalculation() {
     state.running = false;
+    window.parent?.postMessage({type:'ops-toolkit-module-state',tool:'calculator',busy:false},location.origin);
     state.runGeneration += 1;
     els.stopBtn.classList.add('hidden');
     els.statusTitle.textContent = 'Расчёт остановлен';
@@ -5342,7 +5345,9 @@
     ];
   }
   function renderManagerRecommendations(){
-    const rows=buildManagerRows().sort((a,b)=>(a.priorityRank??9)-(b.priorityRank??9)||a.route.localeCompare(b.route,'ru')||(a.price??Infinity)-(b.price??Infinity)),columns=managerSalesColumns(rows);
+    const rows=buildManagerRows().sort((a,b)=>(a.priorityRank??9)-(b.priorityRank??9)||a.route.localeCompare(b.route,'ru')||(a.price??Infinity)-(b.price??Infinity));
+    renderManagerColumnSelector(rows);
+    const columns=managerSalesColumns(rows);
     els.managerSummary.innerHTML=salesSummaryCards(rows).map(card=>`<div class="metric sales-metric ${card.tone||''}"><span>${escapeHtml(card.label)}</span><b>${escapeHtml(card.value)}</b>${card.note?`<small>${escapeHtml(card.note)}</small>`:''}</div>`).join('');
     els.managerTableHead.innerHTML=`<tr>${columns.map(column=>`<th${column.tip?` data-tip="${escapeHtml(column.tip)}"`:''}>${escapeHtml(column.label)}</th>`).join('')}</tr>`;
     if(!rows.length){els.managerTableBody.innerHTML=`<tr><td colspan="${columns.length}" class="empty-tariffs">Нет данных по текущим расчётам и выбранным фильтрам. Проверьте общую выборку: ТК, тип доставки, тарифы и диапазон цен.</td></tr>`;return;}
@@ -5817,7 +5822,17 @@
   function comparisonPresetKeysFromList(keys){const allowed=new Set(comparisonMetricOptions().map(metric=>metric.key));return(keys||[]).filter(key=>allowed.has(key));}
   function enrichSalesRecord(record,params){const model=tariffPriceModel(record.item),price=model.userPrice,lkPercentFloor=lkFloorCandidates(model).find(item=>item.label.includes('%'))?.value??null,marketGap=price!==null&&record.marketMin&&record.marketMin>0?(price-record.marketMin)/record.marketMin*100:null,{floorPrice,floorSource}=priceFloorModel(model,params),marketTarget=record.marketMin&&record.marketMin>0?record.marketMin*(1-params.beat/100):null,currentBelowFloor=price!==null&&floorPrice!==null&&price<floorPrice,safeDiscount=price!==null&&floorPrice!==null&&!currentBelowFloor?Math.max(0,(price-floorPrice)/price*100):currentBelowFloor?0:null;let recommendedPrice=null,recommendedDiscount=null,recommendationStatus='';if(price===null)recommendationStatus='Нет цены клиента';else if(floorPrice===null)recommendationStatus='Не хватает данных для ограничения цены';else if(currentBelowFloor){recommendedPrice=floorPrice;recommendedDiscount=0;recommendationStatus='Поднять цену до допустимого минимума';}else if(marketTarget===null){recommendedPrice=price;recommendedDiscount=0;recommendationStatus='Нет другой ТК для сравнения';}else if(price<=marketTarget){recommendedPrice=price;recommendedDiscount=0;recommendationStatus='Цена уже конкурентнее альтернативы';}else{recommendedPrice=Math.max(floorPrice,marketTarget);recommendedDiscount=Math.max(0,(price-recommendedPrice)/price*100);recommendationStatus=recommendedPrice>marketTarget?'Скидку ограничивает допустимый минимум':'Можно снизить цену и стать конкурентнее';}const enriched={...record,price,priceWithoutDiscount:model.userPriceWithoutDiscount,input:model.inputPrice,inputPercent:model.inputPricePercent,minAllowedPrice:model.minPrice,minAllowedPercent:model.minPricePercent,minPercentFloor:lkPercentFloor,retail:projectHasRetailPricing()?model.retailPrice:null,activeDiscount:model.activeDiscountPct,margin:model.marginRub,marginPct:model.marginPct,clientDiscount:model.clientDiscountPct,displayDiscount:displayDiscountPct(record.item),retailDiscount:projectHasRetailPricing()?model.retailDiscountPct:null,marketGap,marketTarget,floorPrice,floorSource,currentBelowFloor,safeDiscount,recommendedPrice,recommendedDiscount,recommendationStatus};const priority=salesPriority(enriched);return{...enriched,priority:priority.label,priorityDetails:priority.details,priorityTone:priority.tone,priorityRank:priority.rank,potentialSavingsRub:salesPotentialSavings(enriched)};}
   function comparisonStats(){const params=salesParams('custom','comparison'),filters=comparisonFilters(),records=bestRouteCompanyRecords(filters).map(record=>enrichSalesRecord(record,params)),scopeRows=new Set(filteredCompanyRecords().filter(record=>deliveryTypeName(record.item)===filters.method).map(record=>record.rowIndex)),groups=new Map();records.forEach(record=>{if(!groups.has(record.company))groups.set(record.company,[]);groups.get(record.company).push(record);});return[...groups.entries()].map(([company,items])=>{const values=key=>items.map(item=>item[key]).filter(value=>Number.isFinite(value)),prices=values('price'),periods=items.map(item=>validPeriod(item.item.maxPeriod)).filter(value=>value!==null),services=items.map(item=>optionalNumeric(item.item.servicesPrice,{nonNegative:true})).filter(value=>value!==null),wins=items.filter(item=>item.routeMarketMin&&item.price!==null&&Math.abs(item.price-item.routeMarketMin)<.01).length,opportunities=items.filter(item=>Number(item.potentialSavingsRub)>0),needsIncrease=items.filter(item=>item.currentBelowFloor),withoutAlternative=items.filter(item=>item.marketMin===null);return{company,minPrice:prices.length?Math.min(...prices):null,avgPrice:averageOrNull(prices),maxPrice:prices.length?Math.max(...prices):null,avgPriceWithoutDiscount:averageOrNull(values('priceWithoutDiscount')),avgInput:averageOrNull(values('input')),avgMinAllowedPrice:averageOrNull(values('minAllowedPrice')),avgRetail:projectHasRetailPricing()?averageOrNull(values('retail')):null,bestPeriod:periods.length?Math.min(...periods):null,avgPeriod:averageOrNull(periods),avgMarginRub:averageOrNull(values('margin')),avgMarginPct:averageOrNull(values('marginPct')),avgRetailDiscount:projectHasRetailPricing()?averageOrNull(values('retailDiscount')):null,avgClientDiscount:averageOrNull(values('clientDiscount')),avgActiveDiscount:averageOrNull(values('activeDiscount')),marketGapPct:averageOrNull(values('marketGap')),safeDiscountPct:averageOrNull(values('safeDiscount')),recommendedPrice:averageOrNull(values('recommendedPrice')),recommendedDiscountPct:averageOrNull(values('recommendedDiscount')),avgServicesPrice:averageOrNull(services),winRatePct:items.length?wins/items.length*100:null,offersCount:items.length,coveragePct:scopeRows.size?new Set(items.map(item=>item.rowIndex)).size/scopeRows.size*100:null,discountOpportunityPct:items.length?opportunities.length/items.length*100:null,avgPotentialSavingsRub:averageOrNull(opportunities.map(item=>item.potentialSavingsRub)),needsPriceIncreasePct:items.length?needsIncrease.length/items.length*100:null,noAlternativePct:items.length?withoutAlternative.length/items.length*100:null,records:items};});}
-  function managerSalesColumns(rows=buildManagerRows()){const any=key=>rows.some(record=>record[key]!==null&&record[key]!==undefined&&Number.isFinite(Number(record[key])));return[{key:'priority',label:'Действие',tip:'Короткая подсказка для менеджера: дать скидку, поднять цену, оставить как есть или проверить вручную.'},{key:'route',label:'Маршрут'},{key:'cargo',label:'Груз'},{key:'company',label:'ТК'},...(usesUrgencyView()?[{key:'urgency',label:'Срочность'}]:[]),{key:'tariff',label:'Тариф'},{key:'method',label:'Тип доставки'},{key:'period',label:'Макс. срок',tip:'Используется максимальный срок. Ноль отображается как «По запросу».'},{key:'price',label:'Текущая цена клиенту',tip:'Фактическая цена выбранного тарифа для клиента.'},...(any('priceWithoutDiscount')?[{key:'priceWithoutDiscount',label:projectHasRetailPricing()?'Цена без персональной скидки':'Цена клиента без скидки',tip:'Цена до скидки клиента.'}]:[]),...(!projectHasRetailPricing()&&any('displayDiscount')?[{key:'displayDiscount',label:`${discountMetricLabel()}, %`,tip:discountMetricTip()}]:[]),...(projectHasRetailPricing()&&any('clientDiscount')?[{key:'clientDiscount',label:'Персональная скидка, %',tip:'Дополнительная скидка клиента. 0% означает, что персональной скидки нет.'}]:[]),...(any('activeDiscount')?[{key:'activeDiscount',label:'Активная скидка ЛК, %',tip:'Скидка, переданная личным кабинетом.'}]:[]),...(any('input')?[{key:'input',label:'Вход',tip:'Себестоимость тарифа.'},{key:'marginPct',label:'Маржа, %',tip:'Доля разницы между ценой клиенту и входом в цене продажи.'}]:[]),...(any('minAllowedPrice')?[{key:'minAllowedPrice',label:'Минимум ЛК, ₽',tip:'Минимальная допустимая сумма из ответа личного кабинета.'}]:[]),...(any('minPercentFloor')?[{key:'minPercentFloor',label:'Мин. по проценту ЛК',tip:'Запасной минимум, когда сумма Минимум ЛК пустая: вход × minPricePercent / 100.'}]:[]),...(projectHasRetailPricing()&&any('retail')?[{key:'retail',label:'Розница',tip:'Розничная цена, когда она доступна.'},{key:'retailDiscount',label:'Скидка от розницы, %',tip:'Разница между розницей и текущей ценой клиенту.'}]:[]),{key:'marketMin',label:'Лучшая цена другой ТК',tip:'Минимальная цена другой выбранной ТК на том же маршруте и типе доставки.'},{key:'marketGap',label:'Разница с альтернативой, %',tip:'Отрицательное значение — текущая ТК дешевле; положительное — дороже лучшей другой ТК.'},{key:'floorPrice',label:'Итоговая нижняя граница',tip:'Ниже этой цены нельзя опускаться по выбранному правилу.'},{key:'safeDiscount',label:'Макс. безопасная скидка, %',tip:'Сколько можно дополнительно снизить от текущей цены до допустимого минимума.'},{key:'potentialSavingsRub',label:'Резерв скидки, ₽',tip:'Разница между текущей ценой и рекомендованной ценой.'},{key:'recommendedPrice',label:'Цена для предложения',tip:'Цена, которую можно предложить клиенту.'},{key:'recommendedDiscount',label:'Доп. скидка до рекомендации, %',tip:'Дополнительное снижение от текущей цены до цены для предложения.'},{key:'status',label:'Вывод для сотрудника'}];}
+  function allManagerSalesColumns(rows=buildManagerRows()){const any=key=>rows.some(record=>record[key]!==null&&record[key]!==undefined&&Number.isFinite(Number(record[key])));return[{key:'priority',label:'Действие',tip:'Короткая подсказка для менеджера: дать скидку, поднять цену, оставить как есть или проверить вручную.'},{key:'route',label:'Маршрут'},{key:'cargo',label:'Груз'},{key:'company',label:'ТК'},...(usesUrgencyView()?[{key:'urgency',label:'Срочность'}]:[]),{key:'tariff',label:'Тариф'},{key:'method',label:'Тип доставки'},{key:'period',label:'Макс. срок',tip:'Используется максимальный срок. Ноль отображается как «По запросу».'},{key:'price',label:'Текущая цена клиенту',tip:'Фактическая цена выбранного тарифа для клиента.'},...(any('priceWithoutDiscount')?[{key:'priceWithoutDiscount',label:projectHasRetailPricing()?'Цена без персональной скидки':'Цена клиента без скидки',tip:'Цена до скидки клиента.'}]:[]),...(!projectHasRetailPricing()&&any('displayDiscount')?[{key:'displayDiscount',label:`${discountMetricLabel()}, %`,tip:discountMetricTip()}]:[]),...(projectHasRetailPricing()&&any('clientDiscount')?[{key:'clientDiscount',label:'Персональная скидка, %',tip:'Дополнительная скидка клиента. 0% означает, что персональной скидки нет.'}]:[]),...(any('activeDiscount')?[{key:'activeDiscount',label:'Активная скидка ЛК, %',tip:'Скидка, переданная личным кабинетом.'}]:[]),...(any('input')?[{key:'input',label:'Вход',tip:'Себестоимость тарифа.'},{key:'marginPct',label:'Маржа, %',tip:'Доля разницы между ценой клиенту и входом в цене продажи.'}]:[]),...(any('minAllowedPrice')?[{key:'minAllowedPrice',label:'Минимум ЛК, ₽',tip:'Минимальная допустимая сумма из ответа личного кабинета.'}]:[]),...(any('minPercentFloor')?[{key:'minPercentFloor',label:'Мин. по проценту ЛК',tip:'Запасной минимум, когда сумма Минимум ЛК пустая: вход × minPricePercent / 100.'}]:[]),...(projectHasRetailPricing()&&any('retail')?[{key:'retail',label:'Розница',tip:'Розничная цена, когда она доступна.'},{key:'retailDiscount',label:'Скидка от розницы, %',tip:'Разница между розницей и текущей ценой клиенту.'}]:[]),{key:'marketMin',label:'Лучшая цена другой ТК',tip:'Минимальная цена другой выбранной ТК на том же маршруте и типе доставки.'},{key:'marketGap',label:'Разница с альтернативой, %',tip:'Отрицательное значение — текущая ТК дешевле; положительное — дороже лучшей другой ТК.'},{key:'floorPrice',label:'Итоговая нижняя граница',tip:'Ниже этой цены нельзя опускаться по выбранному правилу.'},{key:'safeDiscount',label:'Макс. безопасная скидка, %',tip:'Сколько можно дополнительно снизить от текущей цены до допустимого минимума.'},{key:'potentialSavingsRub',label:'Резерв скидки, ₽',tip:'Разница между текущей ценой и рекомендованной ценой.'},{key:'recommendedPrice',label:'Цена для предложения',tip:'Цена, которую можно предложить клиенту.'},{key:'recommendedDiscount',label:'Доп. скидка до рекомендации, %',tip:'Дополнительное снижение от текущей цены до цены для предложения.'},{key:'status',label:'Вывод для сотрудника'}];}
+  function managerSalesColumns(rows=buildManagerRows()){
+    const all=allManagerSalesColumns(rows),selected=new Set(Array.isArray(state.settings.managerVisibleColumns)?state.settings.managerVisibleColumns:[]);
+    return selected.size?all.filter(column=>selected.has(column.key)):all;
+  }
+  function renderManagerColumnSelector(rows=buildManagerRows()){
+    const host=document.getElementById('managerColumnFields'),count=document.getElementById('managerColumnsCount');if(!host)return;
+    const all=allManagerSalesColumns(rows),selected=new Set(Array.isArray(state.settings.managerVisibleColumns)?state.settings.managerVisibleColumns:[]),showAll=!selected.size;
+    host.innerHTML=all.map(column=>`<label><input type="checkbox" value="${escapeHtml(column.key)}" ${showAll||selected.has(column.key)?'checked':''}><span>${escapeHtml(column.label)}</span></label>`).join('');
+    if(count)count.textContent=`(${showAll?all.length:selected.size}/${all.length})`;
+  }
   function managerExportValue(record,key){const values={priority:`${record.priority}${record.priorityDetails?` — ${record.priorityDetails}`:''}`,route:record.route,cargo:cargoLabel(record.row),company:record.company,urgency:record.item.urgencyLabel||'',tariff:tariffDisplayName(record.item),method:record.item.deliveryTypeLabel||record.item.deliveryMethodLabel||'',period:periodExportValue(record.item.maxPeriod),price:record.price,priceWithoutDiscount:record.priceWithoutDiscount,displayDiscount:record.displayDiscount,clientDiscount:record.clientDiscount,activeDiscount:record.activeDiscount,input:record.input,marginPct:record.marginPct,minAllowedPrice:record.minAllowedPrice,minPercentFloor:record.minPercentFloor,retail:record.retail,retailDiscount:record.retailDiscount,marketMin:record.marketMin,marketGap:record.marketGap,floorPrice:record.floorPrice,safeDiscount:record.safeDiscount,potentialSavingsRub:record.potentialSavingsRub,recommendedPrice:record.recommendedPrice,recommendedDiscount:record.recommendedDiscount,status:record.recommendationStatus};const value=values[key];return typeof value==='number'&&Number.isFinite(value)?round2(value):(value??'');}
   function managerCellMarkup(record,key){const gapClass=record.marketGap===null?'':record.marketGap<=0?'status-good':record.marketGap<=5?'status-warn':'status-bad',priorityClass=`recommendation-status ${record.priorityTone||'neutral'}`;const cells={priority:`<td><span class="${priorityClass}">${escapeHtml(record.priority||'Проверить')}</span>${record.priorityDetails?`<small class="cell-note">${escapeHtml(record.priorityDetails)}</small>`:''}</td>`,route:`<td class="route-cell">${escapeHtml(record.route)}</td>`,cargo:`<td>${escapeHtml(cargoLabel(record.row))}</td>`,company:`<td>${escapeHtml(record.company)}</td>`,urgency:`<td><span class="urgency-badge">${escapeHtml(tariffUrgencyLabel(record.item))}</span></td>`,tariff:`<td>${escapeHtml(tariffDisplayName(record.item))}</td>`,method:`<td>${escapeHtml(record.item.deliveryTypeLabel||record.item.deliveryMethodLabel||'—')}</td>`,period:`<td>${escapeHtml(formatTerm(record.item))}</td>`,price:`<td><b>${escapeHtml(moneyOrDash(record.price,{positive:true}))}</b></td>`,priceWithoutDiscount:`<td>${escapeHtml(moneyOrDash(record.priceWithoutDiscount,{positive:true}))}</td>`,displayDiscount:`<td>${escapeHtml(percentOrDash(record.displayDiscount))}</td>`,clientDiscount:`<td>${escapeHtml(percentOrDash(record.clientDiscount))}</td>`,activeDiscount:`<td>${escapeHtml(percentOrDash(record.activeDiscount))}</td>`,input:`<td>${escapeHtml(moneyOrDash(record.input,{nonNegative:true}))}</td>`,marginPct:`<td>${escapeHtml(percentOrDash(record.marginPct))}</td>`,minAllowedPrice:`<td>${escapeHtml(moneyOrDash(record.minAllowedPrice,{positive:true}))}</td>`,minPercentFloor:`<td>${escapeHtml(moneyOrDash(record.minPercentFloor,{positive:true}))}<small class="cell-note">${record.minAllowedPercent===null?'':`${escapeHtml(percentOrDash(record.minAllowedPercent))} ЛК`}</small></td>`,retail:`<td>${escapeHtml(moneyOrDash(record.retail,{positive:true}))}</td>`,retailDiscount:`<td>${escapeHtml(percentOrDash(record.retailDiscount))}</td>`,marketMin:`<td>${escapeHtml(moneyOrDash(record.marketMin,{positive:true}))}</td>`,marketGap:`<td class="${gapClass}">${escapeHtml(percentOrDash(record.marketGap))}</td>`,floorPrice:`<td>${record.floorPrice===null?'—':`${escapeHtml(formatValue(round2(record.floorPrice)))} ₽`}<small class="cell-note">${escapeHtml(record.floorSource||'')}</small></td>`,safeDiscount:`<td>${escapeHtml(percentOrDash(record.safeDiscount))}</td>`,potentialSavingsRub:`<td>${escapeHtml(moneyOrDash(record.potentialSavingsRub,{positive:true}))}</td>`,recommendedPrice:`<td><b>${record.recommendedPrice===null?'—':`${escapeHtml(formatValue(round2(record.recommendedPrice)))} ₽`}</b></td>`,recommendedDiscount:`<td>${escapeHtml(percentOrDash(record.recommendedDiscount))}</td>`,status:`<td><span class="${priorityClass}">${escapeHtml(record.recommendationStatus)}</span></td>`};return cells[key]||'<td>—</td>';}
 
@@ -6145,7 +6160,17 @@
         debounceMs: state.settings.debounceMs, calcTimeoutMs: state.settings.calcTimeoutMs,
         calcRetries: state.settings.calcRetries, density: state.settings.density,
         showServiceInfo: Boolean(state.settings.showServiceInfo), exportCompanySheets: state.settings.exportCompanySheets !== false,
-        exportAnalyticsSheet: Boolean(state.settings.exportAnalyticsSheet), companySheetLayout: state.settings.companySheetLayout
+        exportAnalyticsSheet: Boolean(state.settings.exportAnalyticsSheet), companySheetLayout: state.settings.companySheetLayout,
+        exportMainCompanyColumns: Boolean(state.settings.exportMainCompanyColumns),
+        mainExportPreset: state.settings.mainExportPreset, tariffExportPreset: state.settings.tariffExportPreset,
+        mainExportFields: [...(state.settings.mainExportFields || [])], tariffExportFields: [...(state.settings.tariffExportFields || [])],
+        overviewColumnOrder: state.settings.overviewColumnOrder || 'logistics',
+        definitions: {
+          mainFields: MAIN_EXPORT_FIELDS.map(field => ({ ...field })), tariffFields: TARIFF_EXPORT_FIELDS.map(field => ({ ...field })),
+          mainPresets: Object.fromEntries(Object.entries(MAIN_EXPORT_PRESETS).map(([key, value]) => [key, [...value]])),
+          tariffPresets: Object.fromEntries(Object.entries(TARIFF_EXPORT_PRESETS).map(([key, value]) => [key, [...value]])),
+          defaultExclusions: [...DEFAULT_COMPANY_EXCLUSIONS]
+        }
       };
     },
     updateSettings(next = {}) {
@@ -6162,6 +6187,12 @@
       if (Object.prototype.hasOwnProperty.call(next, 'exportCompanySheets')) state.settings.exportCompanySheets = Boolean(next.exportCompanySheets);
       if (Object.prototype.hasOwnProperty.call(next, 'exportAnalyticsSheet')) state.settings.exportAnalyticsSheet = Boolean(next.exportAnalyticsSheet);
       if (Object.prototype.hasOwnProperty.call(next, 'companySheetLayout')) state.settings.companySheetLayout = next.companySheetLayout === 'long' ? 'long' : 'wide';
+      if (Object.prototype.hasOwnProperty.call(next, 'exportMainCompanyColumns')) state.settings.exportMainCompanyColumns = Boolean(next.exportMainCompanyColumns);
+      if (Array.isArray(next.mainExportFields)) state.settings.mainExportFields = sanitizeFieldSelection(next.mainExportFields, MAIN_EXPORT_FIELDS, MAIN_EXPORT_PRESETS.compact);
+      if (Array.isArray(next.tariffExportFields)) state.settings.tariffExportFields = sanitizeFieldSelection(next.tariffExportFields, TARIFF_EXPORT_FIELDS, TARIFF_EXPORT_PRESETS.compact);
+      if (Object.prototype.hasOwnProperty.call(next, 'mainExportPreset')) state.settings.mainExportPreset = ['compact','finance','full','custom'].includes(next.mainExportPreset) ? next.mainExportPreset : presetForSelection(state.settings.mainExportFields, MAIN_EXPORT_PRESETS);
+      if (Object.prototype.hasOwnProperty.call(next, 'tariffExportPreset')) state.settings.tariffExportPreset = ['compact','finance','logistics','full','custom'].includes(next.tariffExportPreset) ? next.tariffExportPreset : presetForSelection(state.settings.tariffExportFields, TARIFF_EXPORT_PRESETS);
+      if (Object.prototype.hasOwnProperty.call(next, 'overviewColumnOrder')) state.settings.overviewColumnOrder = COMPANY_COLUMN_ORDERS[next.overviewColumnOrder] ? next.overviewColumnOrder : 'logistics';
       persistSettings();
       applyDensity();
       fillSettingsForm();
@@ -6169,12 +6200,28 @@
     },
     runAction(action) {
       if (action === 'calculate') return calculateAll();
+      if (action === 'stop') return stopCalculation();
+      if (action === 'add-row') return addRows([createRow()], true);
+      if (action === 'paste') return openPasteModal();
       if (action === 'import') return els.fileInput?.click();
       if (action === 'template') return downloadImportTemplate();
       if (action === 'example') return insertDemo();
       if (action === 'toggle-auto') { els.autoCalcToggle.checked = !els.autoCalcToggle.checked; els.autoCalcToggle.dispatchEvent(new Event('change', { bubbles: true })); return els.autoCalcToggle.checked; }
       if (action === 'help') return openHelpModal();
       if (action === 'settings') return openSettings('connections');
+    },
+    async refreshCompanies(force = true) {
+      state.settingsProjectId = currentProjectId();
+      await refreshPartnerCompanies(Boolean(force));
+      return this.getSettings();
+    },
+    async clearLocalCache(category = 'all') {
+      const normalized = normalizeCacheCategory(category);
+      if (normalized === 'table-inputs') { clearSavedTableState(true); return; }
+      let prefixes = null;
+      if (normalized === 'dadata') prefixes = ['address:'];
+      if (normalized === 'calculator') prefixes = ['calc:'];
+      if (normalized !== 'geo' && normalized !== 'lk') await state.cache?.clear?.(prefixes);
     }
   };
 
@@ -6182,5 +6229,14 @@
   document.addEventListener('DOMContentLoaded', init);
   document.addEventListener('DOMContentLoaded',()=>setTimeout(initV22Ui,0));
   document.addEventListener('DOMContentLoaded',()=>setTimeout(initV25Ui,0));
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.getElementById('managerColumnFields')?.addEventListener('change',event=>{
+      if(!event.target.matches('input[type="checkbox"]'))return;
+      const selected=[...document.querySelectorAll('#managerColumnFields input:checked')].map(input=>input.value);
+      state.settings.managerVisibleColumns=selected;
+      persistSettings();
+      renderManagerRecommendations();
+    });
+  });
   document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>window.parent?.postMessage({type:'ops-toolkit-ready',tool:'calculator'},location.origin),0));
 })();

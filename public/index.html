@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>OPS Toolkit Desktop</title>
-  <link rel="stylesheet" href="desktop.css?v=0.3.0">
+  <link rel="icon" type="image/png" href="/orders/icon128.png">
+  <link rel="stylesheet" href="desktop.css?v=0.4.0">
 </head>
 <body>
   <div class="app-frame">
@@ -71,6 +72,10 @@
           <span id="clientResult" class="client-result">Клиент не выбран</span>
         </div>
 
+        <div id="ordersNavbarSummary" class="orders-navbar-summary" hidden>
+          <span>К созданию</span><b id="ordersSelectedCount">0</b><strong id="ordersSelectedTotal">0 ₽</strong>
+        </div>
+
         <div id="toolActions" class="tool-actions" aria-label="Основные действия"></div>
       </div>
     </header>
@@ -97,13 +102,21 @@
           <div class="form-grid">
             <label class="field"><span>Email <b>*</b></span><input id="emailInput" type="email" autocomplete="username" placeholder="user@example.ru"></label>
             <label class="field"><span>Пароль <b>*</b></span><span class="password-field"><input id="passwordInput" type="password" autocomplete="current-password"><button id="passwordToggle" type="button" aria-label="Показать пароль">Показать</button></span></label>
-            <label class="field wide"><span>Токен DaData <b>*</b></span><input id="dadataInput" type="password" autocomplete="off" placeholder="Токен распознавания адресов"></label>
+            <label class="field wide"><span>Токен DaData <b>*</b></span><span class="password-field"><input id="dadataInput" type="password" autocomplete="off" placeholder="Токен распознавания адресов"><button id="dadataToggle" type="button" aria-label="Показать токен DaData">Показать</button></span></label>
           </div>
           <div id="authStatus" class="inline-status neutral"><span></span>Доступ ещё не проверен</div>
         </section>
         <section class="settings-section">
           <div class="section-heading"><span class="section-number">2</span><div><h3 id="sectionSettingsTitle">Массовый расчёт</h3><p id="sectionSettingsHint">Настройки активного инструмента.</p></div></div>
           <div id="moduleSettingsHost" class="module-settings-host"></div>
+        </section>
+        <section class="settings-section cache-section">
+          <div class="section-heading"><span class="section-number">3</span><div><h3>Кеш и сохранённые данные</h3><p>Очистка затрагивает кеш локального сервера и данные активного раздела в приложении.</p></div></div>
+          <div class="cache-toolbar">
+            <button id="refreshCacheButton" class="button secondary" type="button">Статистика кеша</button>
+            <button id="clearCacheButton" class="button danger" type="button">Очистить кеш</button>
+          </div>
+          <div id="cacheStatus" class="cache-status">Статистика ещё не загружена.</div>
         </section>
         <details class="technical-settings">
           <summary>Диагностика</summary>
@@ -120,7 +133,16 @@
     </aside>
   </div>
 
+  <div id="confirmDialog" class="shell-confirm" hidden>
+    <button class="shell-confirm-backdrop" type="button" data-confirm-value="false" aria-label="Закрыть"></button>
+    <section class="shell-confirm-panel" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <h2 id="confirmTitle">Подтвердите действие</h2>
+      <p id="confirmMessage"></p>
+      <footer><button class="button secondary" type="button" data-confirm-value="false">Отмена</button><button id="confirmAcceptButton" class="button danger" type="button" data-confirm-value="true">Продолжить</button></footer>
+    </section>
+  </div>
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
-  <script src="desktop.js?v=0.3.0"></script>
+  <div id="appTooltip" class="app-tooltip" role="tooltip" hidden></div>
+  <script src="desktop.js?v=0.4.0"></script>
 </body>
 </html>
