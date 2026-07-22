@@ -52,7 +52,7 @@
     settings: {
       projectId: 'kd', email: '', password: '', tokenDaData: '', userInn: '', userId: '', userDisplay: '',
       concurrency: 3, timeoutMs: DEFAULT_CALCULATION_TIMEOUT_MS, retries: DEFAULT_CALCULATION_RETRIES,
-      takeDate: '', takeTimeFrom: '', takeTimeTo: '', theme: 'light', density: 'compact', autoCalculate: false,
+      takeDate: '', takeTimeFrom: '', takeTimeTo: '', theme: 'light', density: 'comfortable', autoCalculate: false,
       authChecked: false, showOnboarding: true, performanceMode: false
     },
     bulk: { mode: 'preferred-cheapest', company: '', preferredCompanies: [], preferredCompaniesTouched: false, tariffSignature: '', tariffSearch: '', servicesSearch: '', servicesOnlyAssigned: false, servicesOpenCompanies: [], services: {}, companyServices: {} },
@@ -614,7 +614,7 @@
     state.settings.autoCalculate = Boolean(state.settings.autoCalculate);
     if (state.settings.density === 'medium' || state.settings.density === 'spacious') state.settings.density = 'comfortable';
     if (state.settings.density === 'micro') state.settings.density = 'dense';
-    if (!['comfortable', 'compact', 'dense'].includes(state.settings.density)) state.settings.density = 'compact';
+    if (!['comfortable', 'compact', 'dense'].includes(state.settings.density)) state.settings.density = 'comfortable';
     state.settings.userInn = sanitizeInn(state.settings.userInn);
     state.settings.timeoutMs = calculationTimeoutMs(state.settings.timeoutMs);
     state.settings.retries = calculationRetries(state.settings.retries);
@@ -1458,7 +1458,7 @@
     const isDark = state.settings.theme === 'dark';
     document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
     document.documentElement.dataset.project = state.settings.projectId || 'kd';
-    document.documentElement.dataset.density = ['comfortable', 'compact', 'dense'].includes(state.settings.density) ? state.settings.density : 'compact';
+    document.documentElement.dataset.density = ['comfortable', 'compact', 'dense'].includes(state.settings.density) ? state.settings.density : 'comfortable';
     document.documentElement.dataset.performance = state.settings.performanceMode ? 'low' : 'normal';
     if (els.themeToggleBtn) {
       els.themeToggleBtn.innerHTML = icon(isDark ? 'sun' : 'moon');
@@ -2206,7 +2206,7 @@
     els.concurrencySelect.value = String(state.settings.concurrency || 3);
     if (els.timeoutInput) els.timeoutInput.value = String(calculationTimeoutMs());
     if (els.retriesSelect) els.retriesSelect.value = String(calculationRetries());
-    if (els.densitySelect) els.densitySelect.value = ['comfortable', 'compact', 'dense'].includes(state.settings.density) ? state.settings.density : 'compact';
+    if (els.densitySelect) els.densitySelect.value = ['comfortable', 'compact', 'dense'].includes(state.settings.density) ? state.settings.density : 'comfortable';
     if (els.showOnboardingInput) els.showOnboardingInput.checked = state.settings.showOnboarding !== false;
     if (els.performanceModeInput) els.performanceModeInput.checked = Boolean(state.settings.performanceMode);
     const today = todayInputDate();
@@ -4078,7 +4078,7 @@
       input.value = String(value);
     }
     if (key === 'retries') value = calculationRetries(value);
-    if (key === 'density' && !['comfortable', 'compact', 'dense'].includes(value)) value = 'compact';
+    if (key === 'density' && !['comfortable', 'compact', 'dense'].includes(value)) value = 'comfortable';
     if (key === 'takeDate') {
       value = value ? clampDateNotPast(value) : '';
       input.value = value;
@@ -5919,7 +5919,7 @@
       if (Object.prototype.hasOwnProperty.call(next, 'concurrency')) state.settings.concurrency = Math.min(6, Math.max(1, Number(next.concurrency) || 3));
       if (Object.prototype.hasOwnProperty.call(next, 'timeoutMs')) state.settings.timeoutMs = calculationTimeoutMs(next.timeoutMs);
       if (Object.prototype.hasOwnProperty.call(next, 'retries')) state.settings.retries = calculationRetries(next.retries);
-      if (Object.prototype.hasOwnProperty.call(next, 'density')) state.settings.density = ['comfortable', 'compact', 'dense'].includes(next.density) ? next.density : 'compact';
+      if (Object.prototype.hasOwnProperty.call(next, 'density')) state.settings.density = ['comfortable', 'compact', 'dense'].includes(next.density) ? next.density : 'comfortable';
       if (Object.prototype.hasOwnProperty.call(next, 'autoCalculate')) state.settings.autoCalculate = Boolean(next.autoCalculate);
       if (Object.prototype.hasOwnProperty.call(next, 'showOnboarding')) state.settings.showOnboarding = Boolean(next.showOnboarding);
       if (Object.prototype.hasOwnProperty.call(next, 'performanceMode')) state.settings.performanceMode = Boolean(next.performanceMode);

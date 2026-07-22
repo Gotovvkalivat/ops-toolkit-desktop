@@ -207,11 +207,12 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .debug-row a { color: var(--accent); font-size: 11px; font-weight: 700; text-decoration: none; }
 .switch-field { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
 .switch-field input { margin:0; accent-color: var(--accent); }
-.orders-navbar-summary { min-width: 150px; display: grid; grid-template-columns: auto auto; column-gap: 7px; align-items: baseline; padding: 5px 9px; border: 1px solid color-mix(in srgb,var(--accent) 35%,var(--line)); border-radius: 6px; background: var(--accent-soft); }
+.orders-navbar-summary { min-width: 220px; display: grid; grid-template-columns: auto auto minmax(92px,1fr); column-gap: 9px; align-items: baseline; padding: 7px 11px; border: 1px solid color-mix(in srgb,var(--accent) 35%,var(--line)); border-radius: 6px; background: var(--accent-soft); }
 .orders-navbar-summary[hidden] { display: none; }
 .orders-navbar-summary span { color: var(--muted); font-size: 9px; font-weight: 700; }
 .orders-navbar-summary b { font-size: 12px; }
-.orders-navbar-summary strong { grid-column: 1 / -1; color: var(--accent); font-size: 13px; }
+.orders-navbar-summary strong { color: var(--accent); font-size: 14px; text-align:right; }
+.access-actions { display:flex; justify-content:flex-end; margin-top:10px; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 13px 22px; border-top: 1px solid var(--line); }
 
 .toast-region { position: fixed; top: 124px; left: 50%; z-index: 4000; width: min(480px, calc(100vw - 24px)); display: grid; gap: 7px; transform: translateX(-50%); pointer-events: none; }
@@ -247,7 +248,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
   .context-title { display: none; }
   .client-control { min-width: 300px; }
   .tool-actions .button span.action-label { display: none; }
-  .orders-navbar-summary { min-width: 108px; }
+  .orders-navbar-summary { min-width: 185px; }
 }
 
 @media (max-width: 680px) {

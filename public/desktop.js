@@ -3,6 +3,7 @@
 const STORAGE_KEY = 'opsToolkitDesktop.chromeStorage.v1';
 const CREDENTIALS_KEY = 'opsToolkitCredentials';
 const SHELL_KEY = 'opsToolkitDesktop.shell.v3';
+const DENSITY_MIGRATION_KEY = 'opsToolkitDesktop.density.v1';
 const PROJECTS = {
   kd: { label: 'Курьер Дисконт', short: 'КД' },
   me: { label: 'ME Express', short: 'ME' },
@@ -54,7 +55,7 @@ const els = {
   settingsDrawer: $('#settingsDrawer'), settingsTitle: $('#settingsTitle'), settingsSubtitle: $('#settingsSubtitle'), settingsProjectLabel: $('#settingsProjectLabel'),
   sectionSettingsTitle: $('#sectionSettingsTitle'), sectionSettingsHint: $('#sectionSettingsHint'), moduleSettingsHost: $('#moduleSettingsHost'),
   emailInput: $('#emailInput'), passwordInput: $('#passwordInput'), dadataInput: $('#dadataInput'), passwordToggle: $('#passwordToggle'), dadataToggle: $('#dadataToggle'),
-  authStatus: $('#authStatus'), saveSettingsButton: $('#saveSettingsButton'), debugModeInput: $('#debugModeInput'),
+  authStatus: $('#authStatus'), checkCredentialsButton: $('#checkCredentialsButton'), saveSettingsButton: $('#saveSettingsButton'), debugModeInput: $('#debugModeInput'),
   frameLoading: $('#frameLoading'), toastRegion: $('#toastRegion'), appTooltip: $('#appTooltip'),
   ordersNavbarSummary: $('#ordersNavbarSummary'), ordersSelectedCount: $('#ordersSelectedCount'), ordersSelectedTotal: $('#ordersSelectedTotal'),
   refreshCacheButton: $('#refreshCacheButton'), clearCacheButton: $('#clearCacheButton'), cacheStatus: $('#cacheStatus')
@@ -80,6 +81,16 @@ function saveShellState() { localStorage.setItem(SHELL_KEY, JSON.stringify({ too
 function svg(name) { return `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`; }
 function frameFor(tool = state.tool) { return document.getElementById(TOOLS[tool].frame); }
 function moduleApi(tool = state.tool) { try { return frameFor(tool)?.contentWindow?.OPS_TOOLKIT_MODULE || null; } catch { return null; } }
+function ensureDefaultDensity(tool) {
+  let migrated = {};
+  try { migrated = JSON.parse(localStorage.getItem(DENSITY_MIGRATION_KEY) || '{}') || {}; } catch { /* ignore */ }
+  if (migrated[tool]) return;
+  const api = moduleApi(tool);
+  if (!api?.updateSettings) return;
+  api.updateSettings({ density: tool === 'orders' ? 'comfortable' : 'medium' });
+  migrated[tool] = true;
+  localStorage.setItem(DENSITY_MIGRATION_KEY, JSON.stringify(migrated));
+}
 function ensureFrame(tool) { const frame = frameFor(tool); if (!frame.src && frame.dataset.src) { els.frameLoading.hidden = false; frame.src = frame.dataset.src; } return frame; }
 function projectCredentials(credentials = readCredentials()) { credentials.projects ||= {}; credentials.projects[state.project] ||= {}; return credentials.projects[state.project]; }
 function activeClient(credentials = readCredentials()) { return projectCredentials(credentials)[TOOLS[state.tool].clientKey] || {}; }
@@ -160,7 +171,6 @@ function moduleSettingsMarkup(settings) {
       <label class="field"><span>Параллельных запросов</span><select data-module-setting="concurrency">${settingsOptions([[1,'1 — бережно'],[2,'2'],[3,'3 — рекомендуется'],[4,'4'],[5,'5'],[6,'6']], settings.concurrency)}</select></label>
       <label class="field"><span>Ожидание ответа</span><select data-module-setting="timeoutMs">${settingsOptions([[60000,'60 сек.'],[90000,'90 сек.'],[120000,'120 сек.'],[180000,'180 сек.']], settings.timeoutMs)}</select></label>
       <label class="field"><span>Повторов после ошибки</span><select data-module-setting="retries">${settingsOptions([[0,'Не повторять'],[1,'1 повтор'],[2,'2 повтора'],[3,'3 повтора']], settings.retries)}</select></label>
-      <label class="field"><span>Плотность интерфейса</span><select data-module-setting="density">${settingsOptions([['comfortable','Удобная'],['compact','Компактная'],['dense','Максимально плотная']], settings.density)}</select></label>
     </div>
     <div class="switch-list">
       <label class="switch-field"><input type="checkbox" data-module-setting="autoCalculate" ${checked(settings.autoCalculate)}><span>Автоматически рассчитывать готовые строки</span></label>
@@ -182,7 +192,6 @@ function moduleSettingsMarkup(settings) {
       <label class="field"><span>Задержка автопоиска</span><select data-module-setting="debounceMs">${settingsOptions([[400,'0,4 сек.'],[650,'0,65 сек.'],[900,'0,9 сек.'],[1200,'1,2 сек.']], settings.debounceMs)}</select></label>
       <label class="field"><span>Ожидание ответа</span><select data-module-setting="calcTimeoutMs">${settingsOptions([[60000,'60 сек.'],[90000,'90 сек.'],[120000,'120 сек.'],[180000,'180 сек.']], settings.calcTimeoutMs)}</select></label>
       <label class="field"><span>Повторов после ошибки</span><select data-module-setting="calcRetries">${settingsOptions([[0,'Не повторять'],[1,'1 повтор'],[2,'2 повтора'],[3,'3 повтора']], settings.calcRetries)}</select></label>
-      <label class="field"><span>Плотность интерфейса</span><select data-module-setting="density">${settingsOptions([['micro','Очень компактная'],['compact','Компактная'],['medium','Обычная'],['spacious','Свободная']], settings.density)}</select></label>
     </div>
     <div class="settings-choice-group"><h4>Не включать ТК в расчёты</h4><p>Список обновляется из справочника текущего проекта.</p><div class="choice-toolbar"><button class="button secondary" type="button" data-settings-action="refresh-companies">Обновить список ТК</button><button class="button ghost" type="button" data-settings-action="company-defaults">По умолчанию</button><button class="button ghost" type="button" data-settings-action="company-none">Включить все</button></div><div class="choice-grid">${companyChecks(hidden,'exclusions')}</div></div>
     <div class="settings-choice-group"><h4>Не выбирать как самый дешёвый</h4><p>ТК останется в результатах, но не станет рекомендацией строки.</p><div class="choice-toolbar"><button class="button ghost" type="button" data-settings-action="best-none">Снять все</button></div><div class="choice-grid">${companyChecks(best,'bestExclusions')}</div></div>
@@ -240,7 +249,7 @@ function renderSettingsForm() {
   const credentials = readCredentials(), project = projectCredentials(credentials);
   els.emailInput.value = project.email || ''; els.passwordInput.value = project.password || ''; els.dadataInput.value = credentials.tokenDaData || '';
   const ready = projectReady(state.project, credentials);
-  els.authStatus.className = `inline-status ${ready ? 'ready' : 'neutral'}`; els.authStatus.lastChild.textContent = ready ? 'Доступ проверен и готов к работе' : 'Заполните поля и сохраните настройки';
+  els.authStatus.className = `inline-status ${ready ? 'ready' : 'neutral'}`; els.authStatus.lastChild.textContent = ready ? 'Доступ проверен и готов к работе' : 'Заполните поля и проверьте доступ';
   els.settingsProjectLabel.textContent = PROJECTS[state.project].label; els.debugModeInput.checked = state.debug;
   renderProjectReadiness(); renderModuleSettings();
 }
@@ -261,9 +270,8 @@ async function rpc(action, payload = {}) {
   return body.data;
 }
 async function saveAndCheckCredentials() {
-  moduleApi()?.updateSettings?.(collectModuleSettings());
   if (authBusy || !validateSettings()) { if (!authBusy) toast('Заполните email, пароль и токен DaData', 'error'); return; }
-  authBusy = true; els.saveSettingsButton.disabled = true; els.saveSettingsButton.querySelector('.button-spinner').hidden = false; els.authStatus.lastChild.textContent = 'Проверяю доступ…';
+  authBusy = true; els.checkCredentialsButton.disabled = true; els.checkCredentialsButton.querySelector('.button-spinner').hidden = false; els.authStatus.lastChild.textContent = 'Проверяю доступ…';
   try {
     const payload = { projectId:state.project, email:els.emailInput.value.trim(), password:els.passwordInput.value, force:true };
     const result = await rpc('auth', payload); if (!result?.token) throw new Error('ЛК не вернул токен авторизации');
@@ -271,11 +279,17 @@ async function saveAndCheckCredentials() {
     const project = projectCredentials(credentials); project.email = payload.email; project.password = payload.password; project.authChecked = true; writeCredentials(credentials);
     notifyModulesCredentialsChanged();
     await moduleApi('calculator')?.refreshCompanies?.(true).catch(() => {});
-    renderSettingsForm(); renderClient(); renderToolActions(); toast('Настройки сохранены, доступ проверен', 'success');
+    renderSettingsForm(); renderClient(); renderToolActions(); toast('Доступ сохранён и проверен', 'success');
   } catch (error) {
     const credentials = readCredentials(), project = projectCredentials(credentials); project.authChecked = false; writeCredentials(credentials);
     els.authStatus.className = 'inline-status error'; els.authStatus.lastChild.textContent = error.message; toast('Не удалось проверить доступ', 'error', error.message);
-  } finally { authBusy = false; els.saveSettingsButton.disabled = false; els.saveSettingsButton.querySelector('.button-spinner').hidden = true; renderProjectReadiness(); }
+  } finally { authBusy = false; els.checkCredentialsButton.disabled = false; els.checkCredentialsButton.querySelector('.button-spinner').hidden = true; renderProjectReadiness(); }
+}
+function saveModuleSettings() {
+  const api = moduleApi();
+  if (!api?.updateSettings) return toast('Раздел ещё загружается', 'error');
+  api.updateSettings(collectModuleSettings());
+  toast('Настройки раздела сохранены', 'success');
 }
 
 async function findClient(options = {}) {
@@ -329,7 +343,7 @@ function configureEmbeddedFrame(frame, tool) {
     doc.querySelector('style[data-desktop-shell]')?.remove(); const style = doc.createElement('style'); style.dataset.desktopShell = 'true';
     style.textContent = tool === 'calculator'
       ? `.topbar,.primary-toolbar{display:none!important}.shell{padding-top:0!important;min-height:100vh!important}.settings-panel{display:none!important}`
-      : `html,body{height:100%!important;overflow:hidden!important}.app-header{display:none!important}.app-shell{height:100%!important;min-height:0!important;padding-top:0!important;align-items:stretch!important}.workspace-top{top:0!important}.side-panel,.workspace,.sidebar-resizer{height:100%!important;min-height:0!important}.side-panel{overflow:auto!important}.side-panel>.panel-section:first-child,.settings-modal-panel{display:none!important}.action-modal{z-index:460!important}.confirm-modal{z-index:520!important}`;
+      : `html,body{height:100%!important;overflow:hidden!important}.app-header{display:none!important}.app-shell{height:100%!important;min-height:0!important;padding-top:0!important;align-items:stretch!important}.workspace-top{top:0!important}.side-panel,.workspace,.sidebar-resizer{height:100%!important;min-height:0!important}.side-panel{position:relative!important;top:0!important;max-height:none!important;overflow:auto!important}.side-panel>.panel-section:first-child,.settings-modal-panel{display:none!important}.action-modal{z-index:460!important}.confirm-modal{z-index:520!important}`;
     doc.head.append(style); frame.contentWindow?.postMessage({type:'ops-toolkit-shell',projectId:state.project,theme:state.theme},location.origin);
   } catch { /* frame is still initializing */ }
 }
@@ -385,14 +399,14 @@ function bindEvents() {
     const field=event.target.closest('[data-module-list="mainExportFields"],[data-module-list="tariffExportFields"]');
     if(field){const kind=field.dataset.moduleList.startsWith('main')?'main':'tariff';const select=els.moduleSettingsHost.querySelector(`[data-export-preset="${kind}"]`);if(select)select.value='custom';}
   });
-  els.saveSettingsButton.addEventListener('click',saveAndCheckCredentials); els.debugModeInput.addEventListener('change',()=>{state.debug=els.debugModeInput.checked;saveShellState();});
+  els.checkCredentialsButton.addEventListener('click',saveAndCheckCredentials); els.saveSettingsButton.addEventListener('click',saveModuleSettings); els.debugModeInput.addEventListener('change',()=>{state.debug=els.debugModeInput.checked;saveShellState();});
   els.refreshCacheButton.addEventListener('click',()=>void refreshCacheStatus()); els.clearCacheButton.addEventListener('click',()=>void clearUnifiedCache());
   document.querySelectorAll('[data-close-settings]').forEach(button=>button.addEventListener('click',closeSettings));
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!els.settingsDrawer.hidden)closeSettings();});
   window.addEventListener('hashchange',()=>{const tool=location.hash.slice(1);if(TOOLS[tool])setActiveTool(tool,{skipHash:true});});
   window.addEventListener('message',event=>{
     if(event.origin!==location.origin)return;
-    if(event.data?.type==='ops-toolkit-ready'){els.frameLoading.hidden=true;configureEmbeddedFrame(frameFor(event.data.tool),event.data.tool);setProject(state.project,{silent:true});if(event.data.tool===state.tool)renderToolActions();}
+    if(event.data?.type==='ops-toolkit-ready'){els.frameLoading.hidden=true;configureEmbeddedFrame(frameFor(event.data.tool),event.data.tool);ensureDefaultDensity(event.data.tool);setProject(state.project,{silent:true});if(event.data.tool===state.tool)renderToolActions();}
     if(event.data?.type==='ops-toolkit-client-cleared'){void Promise.resolve(moduleApi(event.data.tool)?.refreshCredentials?.()).then(()=>renderClient());}
     if(event.data?.type==='ops-toolkit-module-state'&&TOOLS[event.data.tool]){moduleState[event.data.tool]={...moduleState[event.data.tool],busy:Boolean(event.data.busy),summary:event.data.summary||moduleState[event.data.tool].summary};if(!event.data.busy&&event.data.tool===state.tool)activeAction='';renderBusyLocks();renderOrdersSummary();renderToolActions();}
   });

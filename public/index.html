@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <title>OPS Toolkit Desktop</title>
   <link rel="icon" type="image/png" href="/orders/icon128.png">
-  <link rel="stylesheet" href="desktop.css?v=0.4.0">
+  <link rel="stylesheet" href="desktop.css?v=0.4.1">
 </head>
 <body>
   <div class="app-frame">
@@ -104,7 +104,10 @@
             <label class="field"><span>Пароль <b>*</b></span><span class="password-field"><input id="passwordInput" type="password" autocomplete="current-password"><button id="passwordToggle" type="button" aria-label="Показать пароль">Показать</button></span></label>
             <label class="field wide"><span>Токен DaData <b>*</b></span><span class="password-field"><input id="dadataInput" type="password" autocomplete="off" placeholder="Токен распознавания адресов"><button id="dadataToggle" type="button" aria-label="Показать токен DaData">Показать</button></span></label>
           </div>
-          <div id="authStatus" class="inline-status neutral"><span></span>Доступ ещё не проверен</div>
+          <div id="authStatus" class="inline-status neutral"><span></span>Заполните поля и проверьте доступ</div>
+          <div class="access-actions">
+            <button id="checkCredentialsButton" class="button primary" type="button"><span class="button-spinner" hidden></span>Сохранить и проверить</button>
+          </div>
         </section>
         <section class="settings-section">
           <div class="section-heading"><span class="section-number">2</span><div><h3 id="sectionSettingsTitle">Массовый расчёт</h3><p id="sectionSettingsHint">Настройки активного инструмента.</p></div></div>
@@ -128,7 +131,7 @@
       </div>
       <footer class="drawer-footer">
         <button class="button ghost" type="button" data-close-settings>Закрыть</button>
-        <button id="saveSettingsButton" class="button primary" type="button"><span class="button-spinner" hidden></span>Сохранить и проверить</button>
+        <button id="saveSettingsButton" class="button primary" type="button">Сохранить</button>
       </footer>
     </aside>
   </div>
@@ -143,6 +146,6 @@
   </div>
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
   <div id="appTooltip" class="app-tooltip" role="tooltip" hidden></div>
-  <script src="desktop.js?v=0.4.0"></script>
+  <script src="desktop.js?v=0.4.1"></script>
 </body>
 </html>
