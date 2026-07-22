@@ -9,7 +9,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-const string AppVersion = "0.4.1";
+const string AppVersion = "0.4.2";
 
 var publicPath = ResolvePublicPath();
 var port = FindAvailablePort(ReadPort());
@@ -373,9 +373,14 @@ sealed class ApiRuntime : IDisposable
         };
         var anotherClient = (JsonObject)basePayload.DeepClone();
         anotherClient["userId"] = "client-b";
+        var presentationVariant = (JsonObject)basePayload.DeepClone();
+        presentationVariant["exclusions"] = new JsonArray("CSE");
+        presentationVariant["bestExclusions"] = new JsonArray("DPD");
+        presentationVariant["bestMethodMode"] = "all";
         var keyA = CalculationCacheKey(basePayload);
         var keyARepeat = CalculationCacheKey((JsonObject)basePayload.DeepClone());
         var keyB = CalculationCacheKey(anotherClient);
+        var presentationKey = CalculationCacheKey(presentationVariant);
 
         var calculatorResponse = new JsonObject
         {
@@ -402,13 +407,14 @@ sealed class ApiRuntime : IDisposable
         {
             deterministicKey = keyA == keyARepeat,
             clientsSeparated = keyA != keyB,
+            presentationFiltersReuseNetworkCache = keyA == presentationKey,
             transportOnlyBest = bestCompany == "CSE",
             bestFilterApplied = filteredBestCompany == "DPD",
             periodRangePreserved = Value.Double(cse, "minPeriod") == 1 && Value.Double(cse, "maxPeriod") == 3
         };
         return new
         {
-            ok = checks.deterministicKey && checks.clientsSeparated && checks.transportOnlyBest && checks.bestFilterApplied && checks.periodRangePreserved,
+            ok = checks.deterministicKey && checks.clientsSeparated && checks.presentationFiltersReuseNetworkCache && checks.transportOnlyBest && checks.bestFilterApplied && checks.periodRangePreserved,
             checks,
             bestCompany,
             filteredBestCompany,
@@ -698,18 +704,17 @@ sealed class ApiRuntime : IDisposable
         if (senderCity.Length == 0 || recipientCity.Length == 0) throw new ApiException("Не удалось определить оба города", "CITY_REQUIRED", 400);
 
         var key = CalculationCacheKey(payload);
-        if (Value.Bool(payload, "force")) Cache.Remove(key);
-        else if (Cache.TryGet(key, out var cached, out _))
+        var force = Value.Bool(payload, "force");
+        if (force) Cache.Remove(key);
+        JsonNode? cached = null;
+        var cacheHit = !force && Cache.TryGet(key, out cached, out _);
+        var bundle = cacheHit
+            ? (JsonObject)cached!.DeepClone()
+            : (JsonObject)await CoalesceAsync(key, async () =>
         {
-            var hit = (JsonObject)cached!.DeepClone();
-            hit["cached"] = true;
-            hit["cacheSource"] = "calculator";
-            hit["calculationContext"] = CalculationContext(payload, key);
-            return hit;
-        }
-
-        return await CoalesceAsync(key, async () =>
-        {
+            // The LK response is cached before UI filters are applied. Changing exclusions or
+            // the best-tariff rule therefore never causes another remote calculation.
+            if (!force && Cache.TryGet(key, out var coalesced, out _)) return coalesced!;
             var authToken = await GetAuthTokenAsync(payload, false, cancellationToken);
             JsonArray partnerCompanies;
             try
@@ -721,7 +726,6 @@ sealed class ApiRuntime : IDisposable
             {
                 partnerCompanies = FallbackCompanies(project);
             }
-
             var attributes = new Dictionary<string, string>
             {
                 ["attributes[sender_city]"] = senderCity,
@@ -740,13 +744,28 @@ sealed class ApiRuntime : IDisposable
             var timeout = Math.Clamp(Value.Int(payload, "timeoutMs", 90_000), 30_000, 180_000);
             var retries = Math.Clamp(Value.Int(payload, "retries", 2), 0, 3);
             var max = Math.Clamp(Value.Int(payload, "maxConcurrentCalculations", MaxCalculationConcurrency), 1, MaxCalculationConcurrency);
-            var response = await FetchJsonAsync(HttpMethod.Get, url, null, null, timeout, retries, null, _calculationGate, max, cancellationToken);
-            var processed = ProcessCalculation(project, response, StringArray(payload, "exclusions"), StringArray(payload, "bestExclusions"), Value.String(payload, "bestMethodMode"), partnerCompanies);
-            var result = Value.Bool(payload, "orderCreatorCompact") ? CompactOrderCreatorResult(processed) : processed;
-            result["calculationContext"] = CalculationContext(payload, key);
-            Cache.Set(key, result, TimeSpan.FromDays(2), "calculations", project.Id, userId);
-            return result;
+            var remote = await FetchJsonAsync(HttpMethod.Get, url, null, null, timeout, retries, null, _calculationGate, max, cancellationToken);
+            if (!Value.Bool(remote, "status") || remote["data"] is not JsonArray remoteTariffs || remoteTariffs.Count == 0)
+                throw new ApiException("Нет доступных тарифов", "NO_TARIFFS", 404);
+            var cachedBundle = new JsonObject
+            {
+                ["response"] = remote.DeepClone(),
+                ["companies"] = partnerCompanies.DeepClone()
+            };
+            Cache.Set(key, cachedBundle, TimeSpan.FromDays(2), "calculations", project.Id, userId);
+            return cachedBundle;
         });
+
+        var response = bundle["response"] as JsonObject
+            ?? throw new ApiException("Повреждён кеш расчёта", "CALCULATION_CACHE_INVALID", 500);
+        var partnerCompanies = bundle["companies"] as JsonArray ?? FallbackCompanies(project);
+
+        var processed = ProcessCalculation(project, response, StringArray(payload, "exclusions"), StringArray(payload, "bestExclusions"), Value.String(payload, "bestMethodMode"), partnerCompanies);
+        var result = Value.Bool(payload, "orderCreatorCompact") ? CompactOrderCreatorResult(processed) : processed;
+        result["cached"] = cacheHit;
+        if (cacheHit) result["cacheSource"] = "calculator";
+        result["calculationContext"] = CalculationContext(payload, key);
+        return result;
     }
 
     private JsonObject CalculationContext(JsonObject payload, string key) => new()
@@ -761,24 +780,15 @@ sealed class ApiRuntime : IDisposable
     {
         var projectId = Value.String(payload, "projectId", "kd");
         var userId = Value.String(payload, "userId");
-        var compact = Value.Bool(payload, "orderCreatorCompact") ? "order" : "full";
-        var exclusions = StringArray(payload, "exclusions");
-        if (exclusions.Length == 0) exclusions = Project.Get(projectId).DefaultExclusions;
-        Array.Sort(exclusions, StringComparer.OrdinalIgnoreCase);
-        var bestExclusions = StringArray(payload, "bestExclusions");
-        Array.Sort(bestExclusions, StringComparer.OrdinalIgnoreCase);
         return string.Join("|", new[]
         {
-            "calc:v15", compact, projectId, AccountScope(projectId, Value.String(payload, "email")), userId,
+            "calc:raw:v16", projectId, AccountScope(projectId, Value.String(payload, "email")), userId,
             Normalize(Value.String(payload, "senderCity")), Normalize(Value.String(payload, "recipientCity")),
             Value.String(payload, "cargoType", DefaultCargoType), CargoSeats(payload).ToString(CultureInfo.InvariantCulture),
             CargoNumber(payload, "cargoWeight", 0.1).ToString("0.###", CultureInfo.InvariantCulture),
             CargoNumber(payload, "cargoLength", 10).ToString("0.###", CultureInfo.InvariantCulture),
             CargoNumber(payload, "cargoWidth", 10).ToString("0.###", CultureInfo.InvariantCulture),
-            CargoNumber(payload, "cargoHeight", 10).ToString("0.###", CultureInfo.InvariantCulture),
-            Value.String(payload, "bestMethodMode", Project.Get(projectId).DefaultBestMethod),
-            string.Join(",", exclusions.Select(Normalize)),
-            string.Join(",", bestExclusions.Select(Normalize))
+            CargoNumber(payload, "cargoHeight", 10).ToString("0.###", CultureInfo.InvariantCulture)
         });
     }
 

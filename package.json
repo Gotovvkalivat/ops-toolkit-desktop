@@ -1,6 +1,6 @@
 {
   "name": "ops-toolkit-desktop",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "description": "Desktop host for OPS Toolkit with a local background server.",
   "main": "server/desktop-server.js",

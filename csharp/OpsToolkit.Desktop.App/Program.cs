@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -18,6 +19,8 @@ internal static class Program
 
 internal sealed class MainWindow : Form
 {
+    private const int ApplicationPort = 48731;
+    private static readonly string ApplicationVersion = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
     private readonly WebView2 _browser = new() { Dock = DockStyle.Fill };
     private readonly Label _loading = new()
     {
@@ -44,10 +47,14 @@ internal sealed class MainWindow : Form
     {
         try
         {
-            var port = ReservePort();
-            var url = $"http://127.0.0.1:{port}/";
-            _server = StartServer(port);
-            await WaitForServerAsync(url, TimeSpan.FromSeconds(25));
+            var url = $"http://127.0.0.1:{ApplicationPort}/";
+            if (!await IsToolkitServerReadyAsync(url))
+            {
+                if (!IsPortAvailable(ApplicationPort))
+                    throw new InvalidOperationException($"Порт {ApplicationPort} занят другим приложением. Закройте его и запустите OPS Toolkit снова.");
+                _server = StartServer(ApplicationPort);
+                await WaitForServerAsync(url, TimeSpan.FromSeconds(25));
+            }
             var userData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OPS Toolkit", "WebView2");
             Directory.CreateDirectory(userData);
             var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: userData);
@@ -64,11 +71,39 @@ internal sealed class MainWindow : Form
         }
     }
 
-    private static int ReservePort()
+    private static bool IsPortAvailable(int port)
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
+        try
+        {
+            using var listener = new TcpListener(IPAddress.Loopback, port);
+            listener.Start();
+            return true;
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> IsToolkitServerReadyAsync(string baseUrl)
+    {
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(700) };
+            using var response = await client.GetAsync(new Uri(new Uri(baseUrl), "api/health"));
+            if (!response.IsSuccessStatusCode) return false;
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var document = await JsonDocument.ParseAsync(stream);
+            var root = document.RootElement;
+            return root.TryGetProperty("mode", out var mode)
+                && string.Equals(mode.GetString(), "desktop-csharp", StringComparison.OrdinalIgnoreCase)
+                && root.TryGetProperty("version", out var version)
+                && string.Equals(version.GetString(), ApplicationVersion, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static Process StartServer(int port)
