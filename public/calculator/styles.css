@@ -1500,9 +1500,6 @@ html[data-theme="dark"] .quick-client-result.error { background: #4b1f1f; border
   margin-bottom:8px;
 }
 .analytics-shared-filter-head .selection-count { margin-left:auto; }
-#toggleAnalyticsFiltersBtn { white-space:nowrap; }
-#companyModal.analytics-filters-collapsed .analytics-shared-filters { padding-bottom:8px; }
-#companyModal.analytics-filters-collapsed .company-filters { display:none; }
 .analytics-shared-filter-head h3 { margin:0; font-size:13px; }
 .analytics-shared-filter-head p { margin:2px 0 0; color:var(--muted); font-size:10px; }
 #companyModal .company-filters { z-index:45; overflow:visible; }
@@ -1657,13 +1654,14 @@ html[data-theme="dark"] .quick-client-result.error { background: #4b1f1f; border
 
 /* Keep analytics filters in one compact row; checkbox fields must not inherit text-input sizing. */
 #companyModal .company-filters-rich {
+  --analytics-filter-height: 42px;
   display: grid !important;
   grid-template-columns:
     minmax(230px, 1.45fr)
     repeat(6, minmax(100px, .72fr))
     repeat(3, minmax(105px, .66fr))
     auto;
-  align-items: end !important;
+  align-items: stretch !important;
   gap: 6px;
   width: 100%;
   min-width: 1380px;
@@ -1686,7 +1684,9 @@ html[data-theme="dark"] .quick-client-result.error { background: #4b1f1f; border
   grid-template-rows: auto 1fr;
   gap: 1px;
   min-width: 0;
-  min-height: 42px;
+  height: var(--analytics-filter-height);
+  min-height: var(--analytics-filter-height);
+  max-height: var(--analytics-filter-height);
   padding: 4px 8px 3px;
   border: 1px solid var(--control-border);
   border-radius: 8px;
@@ -1715,8 +1715,37 @@ html[data-theme="dark"] .quick-client-result.error { background: #4b1f1f; border
   box-shadow: 0 0 0 2px var(--primary-ring);
 }
 #companyModal .analytics-filter-limits .filter-reset {
-  min-height: 42px;
+  height: var(--analytics-filter-height);
+  min-height: var(--analytics-filter-height);
+  max-height: var(--analytics-filter-height);
   padding-inline: 10px;
+}
+#companyModal .analytics-filter-search input,
+#companyModal .analytics-filter-facets .choice-filter > summary {
+  height: var(--analytics-filter-height);
+  min-height: var(--analytics-filter-height);
+  max-height: var(--analytics-filter-height);
+  margin: 0;
+}
+#companyModal .analytics-filter-search {
+  align-self: stretch;
+}
+#companyModal .analytics-table-toolbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+#companyModal .analytics-table-toolbar .manager-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
 }
 #companyModal .manager-columns-picker {
   position: relative;
@@ -1726,6 +1755,10 @@ html[data-theme="dark"] .quick-client-result.error { background: #4b1f1f; border
   border: 0;
   background: transparent;
 }
+#companyModal .analytics-table-toolbar .manager-columns-picker {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
 #companyModal .manager-columns-picker > summary {
   width: max-content;
   min-height: 32px;
@@ -1733,7 +1766,8 @@ html[data-theme="dark"] .quick-client-result.error { background: #4b1f1f; border
 }
 #companyModal .manager-columns-picker .metric-checkboxes {
   position: absolute;
-  left: 0;
+  right: 0;
+  left: auto;
   top: calc(100% + 6px);
   z-index: 80;
   width: min(980px, calc(100vw - 90px));
@@ -1801,6 +1835,14 @@ html[data-theme="dark"] .quick-client-result.error { background: #4b1f1f; border
     width: auto;
     max-height: calc(100dvh - 130px);
     grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+  #companyModal .analytics-table-toolbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding-inline: 10px;
+  }
+  #companyModal .analytics-table-toolbar .manager-columns-picker {
+    margin-left: 0;
   }
 }
 

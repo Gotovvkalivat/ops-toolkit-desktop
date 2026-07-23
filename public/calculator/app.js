@@ -128,7 +128,7 @@
     advancedTariffView:false, showServiceInfo:false, theme:'system', density:'medium', overviewColumnOrder:'logistics',
     comparisonMetrics:[...COMPARISON_PRESETS.sale], comparisonTariffMode:'cheapest', comparisonPeriodMax:'', salesFloorMode:'strict', salesFloorPercent:10, salesBeatMarketPct:1,
     managerView:'recommendations', managerBaseCompany:'cheapest', managerTariffMode:'cheapest', managerPeriodMax:'', managerMethod:'', managerPreset:'custom', managerFloorMode:'strict', managerFloorPercent:10, managerBeatMarketPct:1, managerVisibleColumns:[],
-    matrixDiscountMode:'', matrixVisibleColumns:[], analyticsFiltersCollapsed:false, matrixMethodByProject:{kd:'',me:'',ops:''},
+    matrixDiscountMode:'', matrixVisibleColumns:[], matrixMethodByProject:{kd:'',me:'',ops:''},
     analyticsMethodByProject:{kd:'',me:'',ops:''}, analyticsSelections:{kd:{},me:{},ops:{}}
   };
   const state = {
@@ -6115,18 +6115,6 @@
     modal.classList.remove('open');
     modal.setAttribute('aria-hidden','true');
   }
-  function applyAnalyticsFiltersCollapsed(){
-    const modal=document.getElementById('companyModal');
-    const button=document.getElementById('toggleAnalyticsFiltersBtn');
-    const collapsed=Boolean(state.settings.analyticsFiltersCollapsed);
-    modal?.classList.toggle('analytics-filters-collapsed',collapsed);
-    if(button)button.textContent=collapsed?'Показать фильтры':'Свернуть фильтры';
-  }
-  function toggleAnalyticsFilters(){
-    state.settings.analyticsFiltersCollapsed=!state.settings.analyticsFiltersCollapsed;
-    persistSettings();
-    applyAnalyticsFiltersCollapsed();
-  }
   function openAnalyticsHelp(topic){
     const data=ANALYTICS_HELP[topic]||ANALYTICS_HELP.comparison,modal=document.getElementById('analyticsHelpModal'),title=document.getElementById('analyticsHelpTitle'),lead=document.getElementById('analyticsHelpLead'),content=document.getElementById('analyticsHelpContent');
     if(!modal||!content)return;
@@ -6139,8 +6127,7 @@
   function initV25Ui(){
     $$('[data-analytics-help]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();openAnalyticsHelp(button.dataset.analyticsHelp);}));
     $$('[data-close-analytics-help]').forEach(element=>element.addEventListener('click',closeAnalyticsHelp));
-    document.getElementById('toggleAnalyticsFiltersBtn')?.addEventListener('click',toggleAnalyticsFilters);
-    applyAnalyticsFiltersCollapsed();
+    document.getElementById('companyModal')?.classList.remove('analytics-filters-collapsed');
     document.getElementById('matrixTariffModeSelect')?.addEventListener('change',()=>refreshAnalyticsScope('matrix'));
     document.getElementById('matrixBaseCompanyFilter')?.addEventListener('change',()=>refreshAnalyticsScope('matrix'));
     document.getElementById('matrixMethodSelect')?.addEventListener('change',event=>{state.settings.matrixMethodByProject||={};state.settings.matrixMethodByProject[currentProjectId()]=event.target.value;persistSettings();refreshAnalyticsScope('matrix');});

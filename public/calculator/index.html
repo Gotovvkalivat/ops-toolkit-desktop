@@ -321,7 +321,7 @@
     <div class="modal-backdrop" data-close-company></div><div class="modal-panel extra-large analytics-modal"><div class="modal-header"><div><h2>Обзор и аналитика продаж по ТК</h2><p>Тарифы, графики, ценовые риски и рекомендации для менеджера только по текущим расчётам.</p></div><div class="modal-header-actions"><button class="icon-button" data-toggle-fullscreen data-target-modal="companyModal" data-tip="Развернуть на весь экран" aria-label="Развернуть">⛶</button><button class="icon-button" data-close-company aria-label="Закрыть">×</button></div></div>
       <nav class="subtabs"><button class="subtab active" data-company-view="tariffs">Тарифы</button><button class="subtab" data-company-view="compare">Графики сравнения</button><button class="subtab-help" data-analytics-help="comparison" aria-label="Справка по графикам сравнения">?</button><button class="subtab" data-company-view="manager">Рекомендации продажам</button><button class="subtab-help" data-analytics-help="manager" aria-label="Справка по рекомендациям">?</button><button class="subtab" data-company-view="matrix">Матрица цен</button><button class="subtab-help" data-analytics-help="matrix" aria-label="Справка по матрице цен">?</button></nav>
       <div class="analytics-shared-filters">
-        <div class="analytics-shared-filter-head"><div><b>Общая выборка аналитики</b><span>Эти фильтры применяются одинаково к тарифам, графикам и аналитической таблице.</span></div><span id="analyticsSharedFilterStatus" class="selection-count"></span><button id="toggleAnalyticsFiltersBtn" class="button mini secondary" type="button">Свернуть фильтры</button></div>
+        <div class="analytics-shared-filter-head"><div><b>Общая выборка аналитики</b><span>Эти фильтры применяются одинаково к тарифам, графикам и аналитической таблице.</span></div><span id="analyticsSharedFilterStatus" class="selection-count"></span></div>
         <div class="tariff-filters company-filters company-filters-rich facet-filter-grid">
           <select id="companySelect" class="hidden" aria-hidden="true"><option value=""></option></select>
           <select id="companyRouteFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
@@ -384,9 +384,11 @@
           <label id="managerBeatMarketLabel">Дешевле рынка, % <span class="help" data-tip="Целевое преимущество относительно лучшей цены другой выбранной ТК на том же маршруте.">?</span><input id="managerBeatMarketInput" type="number" min="0" max="30" value="1"></label>
           <div class="analytics-auto-status align-bottom updated" data-tip="После короткой паузы таблица автоматически пересчитывается по текущим расчётам, фильтрам и выбранным тарифам. После обновления появится уведомление."><span class="status-dot"></span><div><b>Автообновление</b><small id="managerUpdatedAt">По текущим расчётам</small></div><button id="refreshManagerBtn" type="button" class="button mini secondary analytics-refresh-button">Обновить</button></div>
           <div class="toolbar-group align-bottom"><button id="copyManagerBtn" class="button secondary">Копировать</button><button id="downloadManagerXlsxBtn" class="button primary">XLSX</button></div>
+        </div>
+        <div class="analytics-table-toolbar">
+          <div class="manager-summary" id="managerSummary"></div>
           <details class="manager-columns-picker"><summary>Настроить колонки <span id="managerColumnsCount"></span></summary><div id="managerColumnFields" class="metric-checkboxes"></div></details>
         </div>
-        <div class="manager-summary" id="managerSummary"></div>
         <div class="tariffs-wrap"><table id="managerTable" class="tariffs-table manager-table"><thead id="managerTableHead"></thead><tbody id="managerTableBody"></tbody></table></div>
       </section>
 
@@ -398,9 +400,11 @@
           <label>Скидка в матрице <span class="help" data-tip="Текущая скидка: для КД от розницы, для ME и OPS от цены без скидки. Активная скидка берётся из ответа ЛК.">?</span><select id="matrixDiscountModeSelect"><option value="">Не показывать</option><option value="current">Текущая скидка</option><option value="active">Активная скидка</option></select></label>
           <div class="analytics-auto-status align-bottom updated" data-tip="Матрица перестраивается по общей выборке аналитики."><span class="status-dot"></span><div><b>По общей выборке</b><small id="matrixUpdatedAt">По текущим расчётам</small></div><button id="refreshMatrixBtn" type="button" class="button mini secondary analytics-refresh-button">Обновить</button></div>
           <div class="toolbar-group align-bottom"><button id="copyMatrixBtn" class="button secondary">Копировать</button><button id="downloadMatrixXlsxBtn" class="button primary">XLSX</button></div>
+        </div>
+        <div class="analytics-table-toolbar">
+          <div class="manager-summary" id="matrixSummary"></div>
           <details class="manager-columns-picker"><summary>Настроить колонки <span id="matrixColumnsCount"></span></summary><div id="matrixColumnFields" class="metric-checkboxes"></div></details>
         </div>
-        <div class="manager-summary" id="matrixSummary"></div>
         <div class="tariffs-wrap"><table id="matrixTable" class="tariffs-table manager-table"><thead id="matrixTableHead"></thead><tbody id="matrixTableBody"></tbody></table></div>
       </section>
     </div>

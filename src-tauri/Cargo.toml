@@ -1,6 +1,6 @@
 [package]
 name = "ops-toolkit-desktop"
-version = "0.5.4"
+version = "0.5.5"
 description = "OPS Toolkit desktop shell"
 edition = "2021"
 
