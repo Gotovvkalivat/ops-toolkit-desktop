@@ -16,7 +16,7 @@
       document.documentElement.dataset.theme = 'light';
     }
   </script>
-  <link rel="stylesheet" href="desktop.css?v=0.5.1">
+  <link rel="stylesheet" href="desktop.css?v=0.5.2">
 </head>
 <body>
   <div class="app-frame">
@@ -151,6 +151,7 @@
           <div class="debug-row">
             <label class="switch-field"><input id="debugModeInput" type="checkbox"><span>Показывать ID ошибки</span></label>
             <a href="/api/debug/status" target="_blank" rel="noreferrer">Открыть диагностику</a>
+            <a href="/debug/requests.html" target="_blank" rel="noreferrer">Журнал запросов API</a>
           </div>
         </details>
       </div>
@@ -171,6 +172,6 @@
   </div>
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
   <div id="appTooltip" class="app-tooltip" role="tooltip" hidden></div>
-  <script src="desktop.js?v=0.5.1"></script>
+  <script src="desktop.js?v=0.5.2"></script>
 </body>
 </html>

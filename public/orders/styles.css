@@ -2907,8 +2907,8 @@ input, select, textarea {
 .orders-table th:nth-child(1), .orders-table td:nth-child(1) { width: 128px; text-align: center; overflow: visible; text-overflow: clip; padding-left: 6px; padding-right: 6px; }
 .orders-table th:nth-child(2), .orders-table td:nth-child(2) { width: 48px; text-align: center; overflow: visible; text-overflow: clip; padding-left: 6px; padding-right: 6px; }
 .orders-table th:nth-child(3), .orders-table td:nth-child(3) { width: 190px; }
-.orders-table th:nth-child(4), .orders-table td:nth-child(4) { width: 220px; }
-.orders-table th:nth-child(5), .orders-table td:nth-child(5) { width: 150px; }
+.orders-table th:nth-child(4), .orders-table td:nth-child(4) { width: 150px; }
+.orders-table th:nth-child(5), .orders-table td:nth-child(5) { width: 220px; }
 .orders-table th:nth-child(6), .orders-table td:nth-child(6) { width: 112px; }
 .orders-table th:nth-child(7), .orders-table td:nth-child(7),
 .orders-table th:nth-child(8), .orders-table td:nth-child(8) { width: 150px; }

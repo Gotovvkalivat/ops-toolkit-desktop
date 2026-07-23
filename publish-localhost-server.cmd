@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-set "VERSION=0.5.1"
+set "VERSION=0.5.2"
 set "OUTPUT=%CD%\release\OPS-Toolkit-Localhost-Server"
 set "ARCHIVE=%CD%\release\OPS-Toolkit-Localhost-Server-v%VERSION%-win-x64.zip"
 

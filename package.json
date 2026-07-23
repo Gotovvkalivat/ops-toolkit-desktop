@@ -1,6 +1,6 @@
 {
   "name": "ops-toolkit-desktop",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "description": "Production desktop and localhost browser builds for OPS Toolkit.",
   "main": "server/desktop-server.js",

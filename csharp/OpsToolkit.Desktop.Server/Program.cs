@@ -9,7 +9,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-const string AppVersion = "0.5.1";
+const string AppVersion = "0.5.2";
 
 var publicPath = ResolvePublicPath();
 var port = FindAvailablePort(ReadPort());
@@ -70,7 +70,7 @@ app.MapGet("/api", () => Results.Json(new
     name = "OPS Toolkit Local API",
     version = AppVersion,
     endpoints = apiRoutes.Select(route => new { method = "POST", path = route.Key, action = route.Value }),
-    diagnostics = new[] { "/api/health", "/api/debug/status", "/api/debug/requests", "/api/debug/self-test" }
+    diagnostics = new[] { "/api/health", "/api/debug/status", "/api/debug/requests", "/api/debug/outbound", "/debug/requests.html", "/api/debug/self-test" }
 }));
 foreach (var route in apiRoutes)
 {
@@ -150,6 +150,13 @@ app.MapGet("/api/debug/requests", (int? limit, ApiRuntime api) =>
     Results.Json(api.Traces.List(Math.Clamp(limit ?? 100, 1, 300))));
 app.MapGet("/api/debug/requests/{traceId}", (string traceId, ApiRuntime api) =>
     api.Traces.Get(traceId) is { } trace ? Results.Json(trace) : Results.NotFound(new { error = "Запрос не найден" }));
+app.MapGet("/api/debug/outbound", (int? limit, ApiRuntime api) =>
+    Results.Json(api.OutboundRequests.Snapshot(Math.Clamp(limit ?? 300, 1, 1000))));
+app.MapDelete("/api/debug/outbound", async (ApiRuntime api) =>
+{
+    await api.OutboundRequests.ClearAsync();
+    return Results.Json(api.OutboundRequests.Snapshot(1));
+});
 app.MapPost("/api/debug/cache/check", async (HttpContext context, ApiRuntime api) =>
 {
     var payload = await JsonNode.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted) as JsonObject ?? [];
@@ -300,6 +307,7 @@ sealed class ApiRuntime : IDisposable
 
     public ServerCache Cache { get; }
     public TraceStore Traces { get; } = new();
+    public OutboundRequestStore OutboundRequests { get; }
 
     public ApiRuntime(string version, bool debug)
     {
@@ -320,6 +328,7 @@ sealed class ApiRuntime : IDisposable
         };
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("OPS-Toolkit-Desktop/0.2");
         Cache = new ServerCache();
+        OutboundRequests = new OutboundRequestStore();
     }
 
     public object Limits() => new
@@ -403,6 +412,8 @@ sealed class ApiRuntime : IDisposable
         var filtered = ProcessCalculation(Project.Get("kd"), calculatorResponse, ["не исключать тестовые тк"], ["CSE"], "door", companies);
         var filteredBestCompany = Value.String(filtered["best"] as JsonObject ?? [], "deliveryCompanyLabel");
         var cse = (processed["allTariffs"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(item => Value.String(item, "deliveryCompanyLabel") == "CSE") ?? [];
+        var sanitizedUrl = RequestLogSanitizer.Url("https://example.local/api?authToken=secret&cargo_weight=2.5&sender_address=Москва");
+        var sanitizedBody = RequestLogSanitizer.Body("""{"password":"secret","cargoWeight":2.5,"sender":{"phone":"79990000000"}}""");
         var checks = new
         {
             deterministicKey = keyA == keyARepeat,
@@ -410,11 +421,17 @@ sealed class ApiRuntime : IDisposable
             presentationFiltersReuseNetworkCache = keyA == presentationKey,
             transportOnlyBest = bestCompany == "CSE",
             bestFilterApplied = filteredBestCompany == "DPD",
-            periodRangePreserved = Value.Double(cse, "minPeriod") == 1 && Value.Double(cse, "maxPeriod") == 3
+            periodRangePreserved = Value.Double(cse, "minPeriod") == 1 && Value.Double(cse, "maxPeriod") == 3,
+            outboundSecretsMasked = !sanitizedUrl.Contains("secret", StringComparison.Ordinal)
+                && !sanitizedUrl.Contains("Москва", StringComparison.Ordinal)
+                && sanitizedUrl.Contains("cargo_weight=2.5", StringComparison.Ordinal)
+                && !sanitizedBody.Contains("secret", StringComparison.Ordinal)
+                && !sanitizedBody.Contains("79990000000", StringComparison.Ordinal)
         };
         return new
         {
-            ok = checks.deterministicKey && checks.clientsSeparated && checks.presentationFiltersReuseNetworkCache && checks.transportOnlyBest && checks.bestFilterApplied && checks.periodRangePreserved,
+            ok = checks.deterministicKey && checks.clientsSeparated && checks.presentationFiltersReuseNetworkCache && checks.transportOnlyBest
+                && checks.bestFilterApplied && checks.periodRangePreserved && checks.outboundSecretsMasked,
             checks,
             bestCompany,
             filteredBestCompany,
@@ -1090,6 +1107,13 @@ sealed class ApiRuntime : IDisposable
         Exception? lastError = null;
         for (var attempt = 0; attempt <= retries; attempt++)
         {
+            var requestStarted = 0L;
+            var requestSent = false;
+            int? responseStatus = null;
+            var responseBytes = 0;
+            var outcome = "network-error";
+            var logError = "";
+            TimeSpan? responseRetryDelay = null;
             try
             {
                 if (rateGate is not null) await rateGate.WaitAsync(cancellationToken);
@@ -1106,33 +1130,76 @@ sealed class ApiRuntime : IDisposable
                         request.Headers.TryAddWithoutValidation(name, value);
                 }
                 if (body is not null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                requestStarted = Stopwatch.GetTimestamp();
+                requestSent = true;
                 using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+                responseStatus = (int)response.StatusCode;
                 var text = await response.Content.ReadAsStringAsync(timeout.Token);
+                responseBytes = Encoding.UTF8.GetByteCount(text);
                 JsonObject json;
                 try { json = JsonNode.Parse(text) as JsonObject ?? new JsonObject { ["raw"] = text }; }
                 catch { json = new JsonObject { ["raw"] = text }; }
-                if (response.IsSuccessStatusCode) return json;
+                if (response.IsSuccessStatusCode)
+                {
+                    outcome = "success";
+                    return json;
+                }
                 var retryable = response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500;
                 if (retryable && attempt < retries)
                 {
+                    outcome = "retry";
                     var retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromMilliseconds(650 * Math.Pow(2, attempt));
-                    await Task.Delay(retryAfter + TimeSpan.FromMilliseconds(Random.Shared.Next(80, 240)), cancellationToken);
+                    responseRetryDelay = retryAfter + TimeSpan.FromMilliseconds(Random.Shared.Next(80, 240));
                     continue;
                 }
-                throw new ApiException(First(Value.String(json, "message"), Value.String(json, "error"), $"HTTP {(int)response.StatusCode}"),
+                outcome = "http-error";
+                logError = First(Value.String(json, "message"), Value.String(json, "error"), $"HTTP {(int)response.StatusCode}");
+                throw new ApiException(logError,
                     "HTTP_ERROR", (int)response.StatusCode);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
+                outcome = "timeout";
+                logError = "Превышено время ожидания ответа API";
                 lastError = new ApiException("Превышено время ожидания ответа API", "TIMEOUT", 504);
+            }
+            catch (OperationCanceledException)
+            {
+                outcome = "cancelled";
+                logError = "Запрос остановлен пользователем";
+                throw;
             }
             catch (HttpRequestException error)
             {
+                outcome = "network-error";
+                logError = error.Message;
                 lastError = error;
             }
             catch (ApiException error) when ((error.Status == 429 || error.Status >= 500) && attempt < retries)
             {
+                outcome = "retry";
+                logError = error.Message;
                 lastError = error;
+            }
+            finally
+            {
+                if (requestSent)
+                {
+                    var durationMs = Stopwatch.GetElapsedTime(requestStarted).TotalMilliseconds;
+                    await OutboundRequests.AddAsync(OutboundRequestEntry.Create(
+                        OutboundRequests.NextId(),
+                        method.Method,
+                        url,
+                        body,
+                        responseStatus,
+                        durationMs,
+                        attempt + 1,
+                        retries + 1,
+                        outcome,
+                        responseBytes,
+                        logError));
+                }
+                if (responseRetryDelay is { } delay) await Task.Delay(delay, cancellationToken);
             }
             if (attempt < retries)
                 await Task.Delay(TimeSpan.FromMilliseconds(650 * Math.Pow(2, attempt) + Random.Shared.Next(80, 240)), cancellationToken);
@@ -1655,4 +1722,223 @@ sealed class TraceStore
     }
     public IEnumerable<RequestTrace> List(int limit) => _items.Reverse().Take(limit);
     public RequestTrace? Get(string id) => _items.FirstOrDefault(item => item.Id == id);
+}
+
+sealed record OutboundRequestEntry(
+    string Id,
+    DateTimeOffset At,
+    string Method,
+    string Url,
+    int? Status,
+    double DurationMs,
+    int Attempt,
+    int TotalAttempts,
+    string Outcome,
+    int RequestBytes,
+    int ResponseBytes,
+    string RequestBody,
+    string Error)
+{
+    public static OutboundRequestEntry Create(string id, string method, string url, string? body, int? status,
+        double durationMs, int attempt, int totalAttempts, string outcome, int responseBytes, string error) =>
+        new(
+            id,
+            DateTimeOffset.UtcNow,
+            method,
+            RequestLogSanitizer.Url(url),
+            status,
+            Math.Round(durationMs, 1),
+            attempt,
+            totalAttempts,
+            outcome,
+            body is null ? 0 : Encoding.UTF8.GetByteCount(body),
+            responseBytes,
+            RequestLogSanitizer.Body(body),
+            RequestLogSanitizer.Text(error, 500));
+}
+
+sealed class OutboundRequestStore
+{
+    public const long MaxFileBytes = 10 * 1024 * 1024;
+    private const long CompactTargetBytes = 6 * 1024 * 1024;
+    private readonly ConcurrentQueue<OutboundRequestEntry> _items = new();
+    private readonly SemaphoreSlim _fileLock = new(1, 1);
+    private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    private readonly string _path;
+    private long _sequence;
+
+    public OutboundRequestStore()
+    {
+        var directory = Environment.GetEnvironmentVariable("OPS_TOOLKIT_DATA")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OPS Toolkit Desktop");
+        try { Directory.CreateDirectory(directory); }
+        catch (UnauthorizedAccessException)
+        {
+            directory = Path.Combine(AppContext.BaseDirectory, "data");
+            Directory.CreateDirectory(directory);
+        }
+        _path = Path.Combine(directory, "outbound-requests.jsonl");
+        LoadRecent();
+    }
+
+    public string NextId() => $"{DateTimeOffset.UtcNow:yyMMddHHmmssfff}-{Interlocked.Increment(ref _sequence):x4}";
+
+    public async Task AddAsync(OutboundRequestEntry entry)
+    {
+        _items.Enqueue(entry);
+        while (_items.Count > 1000) _items.TryDequeue(out _);
+        var line = JsonSerializer.Serialize(entry, _jsonOptions) + Environment.NewLine;
+        var lineBytes = Encoding.UTF8.GetByteCount(line);
+        await _fileLock.WaitAsync();
+        try
+        {
+            if (File.Exists(_path) && new FileInfo(_path).Length + lineBytes > MaxFileBytes) CompactFile();
+            await File.AppendAllTextAsync(_path, line, new UTF8Encoding(false));
+        }
+        catch
+        {
+            // Diagnostics must never interrupt calculations or order creation.
+        }
+        finally
+        {
+            _fileLock.Release();
+        }
+    }
+
+    public object Snapshot(int limit)
+    {
+        long size = 0;
+        try { if (File.Exists(_path)) size = new FileInfo(_path).Length; }
+        catch { }
+        return new
+        {
+            entries = _items.Reverse().Take(limit).ToArray(),
+            filePath = _path,
+            sizeBytes = size,
+            maxBytes = MaxFileBytes
+        };
+    }
+
+    public async Task ClearAsync()
+    {
+        await _fileLock.WaitAsync();
+        try
+        {
+            while (_items.TryDequeue(out _)) { }
+            if (File.Exists(_path)) File.Delete(_path);
+        }
+        finally
+        {
+            _fileLock.Release();
+        }
+    }
+
+    private void LoadRecent()
+    {
+        try
+        {
+            if (!File.Exists(_path)) return;
+            foreach (var line in File.ReadLines(_path).TakeLast(1000))
+            {
+                var entry = JsonSerializer.Deserialize<OutboundRequestEntry>(line, _jsonOptions);
+                if (entry is not null) _items.Enqueue(entry);
+            }
+        }
+        catch
+        {
+            while (_items.TryDequeue(out _)) { }
+        }
+    }
+
+    private void CompactFile()
+    {
+        try
+        {
+            var kept = new Stack<string>();
+            long keptBytes = 0;
+            foreach (var line in File.ReadLines(_path).Reverse())
+            {
+                var bytes = Encoding.UTF8.GetByteCount(line) + Environment.NewLine.Length;
+                if (keptBytes + bytes > CompactTargetBytes) break;
+                kept.Push(line);
+                keptBytes += bytes;
+            }
+            File.WriteAllLines(_path, kept, new UTF8Encoding(false));
+        }
+        catch
+        {
+            File.WriteAllText(_path, "", new UTF8Encoding(false));
+        }
+    }
+}
+
+static class RequestLogSanitizer
+{
+    private static readonly string[] SensitiveFragments =
+    [
+        "token", "password", "passwd", "authorization", "cookie", "secret", "apikey",
+        "email", "phone", "inn", "passport", "address", "contact", "sender_name",
+        "recipient_name", "query"
+    ];
+
+    public static string Url(string raw)
+    {
+        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri)) return Text(raw, 2000);
+        var baseUrl = $"{uri.Scheme}://{uri.Authority}{uri.AbsolutePath}";
+        if (string.IsNullOrEmpty(uri.Query)) return baseUrl;
+        var parts = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part =>
+            {
+                var pair = part.Split('=', 2);
+                var key = Uri.UnescapeDataString(pair[0].Replace("+", " "));
+                var value = pair.Length > 1 ? Uri.UnescapeDataString(pair[1].Replace("+", " ")) : "";
+                return $"{key}={(IsSensitive(key) ? "***" : Text(value, 180))}";
+            });
+        return baseUrl + "?" + string.Join("&", parts);
+    }
+
+    public static string Body(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+        try
+        {
+            var node = JsonNode.Parse(raw);
+            return Text(SanitizeNode(node, "").ToJsonString(), 4000);
+        }
+        catch
+        {
+            return $"[тело не в JSON, {Encoding.UTF8.GetByteCount(raw)} байт]";
+        }
+    }
+
+    public static string Text(string? value, int maxLength)
+    {
+        var text = (value ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
+        return text.Length <= maxLength ? text : text[..maxLength] + "…";
+    }
+
+    private static JsonNode SanitizeNode(JsonNode? node, string key)
+    {
+        if (node is null) return JsonValue.Create((string?)null)!;
+        if (IsSensitive(key)) return JsonValue.Create("***")!;
+        if (node is JsonObject obj)
+        {
+            var result = new JsonObject();
+            foreach (var (childKey, value) in obj) result[childKey] = SanitizeNode(value, childKey);
+            return result;
+        }
+        if (node is JsonArray array)
+        {
+            var result = new JsonArray();
+            foreach (var value in array) result.Add(SanitizeNode(value, key));
+            return result;
+        }
+        return node.DeepClone();
+    }
+
+    private static bool IsSensitive(string key)
+    {
+        var normalized = key.Replace("-", "").Replace("_", "").ToLowerInvariant();
+        return SensitiveFragments.Any(fragment => normalized.Contains(fragment.Replace("_", ""), StringComparison.Ordinal));
+    }
 }

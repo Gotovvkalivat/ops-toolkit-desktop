@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Журнал запросов API · OPS Toolkit</title>
+  <link rel="stylesheet" href="requests.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="brand-mark" aria-hidden="true">↗</div>
+    <div class="page-title">
+      <h1>Журнал запросов API</h1>
+      <p>Только реальные исходящие обращения сервера. Секреты и персональные данные скрыты.</p>
+    </div>
+    <div class="header-actions">
+      <label class="auto-refresh"><input id="autoRefreshInput" type="checkbox" checked><span>Автообновление</span></label>
+      <button id="refreshButton" type="button">Обновить</button>
+      <button id="clearButton" class="danger" type="button">Очистить журнал</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="summary" aria-label="Сводка журнала">
+      <div><span>Записей показано</span><b id="entriesCount">0</b></div>
+      <div><span>Размер файла</span><b id="fileSize">0 Б</b></div>
+      <div><span>Ограничение</span><b id="fileLimit">10 МБ</b></div>
+      <div class="path-summary"><span>Файл журнала</span><b id="filePath">—</b></div>
+    </section>
+
+    <section class="filters">
+      <label class="search-field">
+        <span>Поиск</span>
+        <input id="searchInput" type="search" placeholder="Метод, адрес, статус или ошибка…">
+      </label>
+      <label>
+        <span>Результат</span>
+        <select id="outcomeSelect">
+          <option value="">Все</option>
+          <option value="success">Успешные</option>
+          <option value="retry">Повторы</option>
+          <option value="http-error">Ошибки API</option>
+          <option value="timeout">Таймауты</option>
+          <option value="network-error">Ошибки сети</option>
+          <option value="cancelled">Остановленные</option>
+        </select>
+      </label>
+      <label>
+        <span>Метод</span>
+        <select id="methodSelect">
+          <option value="">Все</option>
+          <option value="GET">GET</option>
+          <option value="POST">POST</option>
+        </select>
+      </label>
+      <span id="updatedAt" class="updated-at">Данные ещё не загружены</span>
+    </section>
+
+    <section class="request-list-shell">
+      <div class="request-columns" aria-hidden="true">
+        <span>Время</span><span>Метод</span><span>Адрес запроса</span><span>Ответ</span><span>Время</span><span>Попытка</span>
+      </div>
+      <div id="requestList" class="request-list">
+        <div class="empty-state">Загрузка журнала…</div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="requests.js"></script>
+</body>
+</html>

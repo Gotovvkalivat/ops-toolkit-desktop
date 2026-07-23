@@ -3457,8 +3457,8 @@
       <td><div class="table-row-tools"><span class="table-row-index">#${escapeHtml(row.index)}</span><button class="table-row-tool" type="button" data-toggle-row title="${expanded ? 'Свернуть' : 'Развернуть'}" aria-label="${expanded ? 'Свернуть' : 'Развернуть'}">${icon(expanded ? 'chevron-up' : 'chevron-right')}</button>${createAction}${deleteAction}</div></td>
       <td><label class="table-check">${checkbox}</label></td>
       <td><b>${companyTitleMarkup(item, company)}</b></td>
-      <td>${escapeHtml(routeText(row))}</td>
       <td>${escapeHtml(item ? tariffDisplayName(item) : '—')}</td>
+      <td>${escapeHtml(routeText(row))}</td>
       <td>${escapeHtml(schedule.date)}${schedule.time ? `<small>${escapeHtml(schedule.time)}</small>` : ''}</td>
       <td><b>${escapeHtml(row.sender.name || '—')}</b><small>${escapeHtml(senderContact)}</small><small>${escapeHtml(senderAddress)}</small></td>
       <td><b>${escapeHtml(row.recipient.name || '—')}</b><small>${escapeHtml(recipientContact)}</small><small>${escapeHtml(recipientAddress)}</small></td>
@@ -3523,7 +3523,7 @@
     const body = tableVirtualBodyMarkup(pageRows, virtual);
     lastVisibleRowsKey = virtualRenderKey('table', pageRows.length, virtual);
     return `<div class="table-mode-wrap"><table class="orders-table">
-      <thead><tr><th></th><th><input type="checkbox" data-select-visible ${pageRows.every(row => row.selected || row.status === 'created') && pageRows.some(row => row.status !== 'created') ? 'checked' : ''}></th><th>ТК</th><th>Маршрут</th><th>Тариф</th><th>Дата забора</th><th>Отправитель</th><th>Получатель</th><th>Вес / места</th><th>Сумма</th><th>Статус</th></tr></thead>
+      <thead><tr><th></th><th><input type="checkbox" data-select-visible ${pageRows.every(row => row.selected || row.status === 'created') && pageRows.some(row => row.status !== 'created') ? 'checked' : ''}></th><th>ТК</th><th>Тариф</th><th>Маршрут</th><th>Дата забора</th><th>Отправитель</th><th>Получатель</th><th>Вес / места</th><th>Сумма</th><th>Статус</th></tr></thead>
       <tbody>${body}</tbody>
     </table></div>${tableDetailFloatingMarkup(pageRows)}`;
   }
