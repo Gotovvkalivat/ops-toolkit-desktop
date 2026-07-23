@@ -417,7 +417,7 @@ function compactService(service) {
   return {
     key: service?.key || service?.name || service?.code || service?.id || '',
     enabled: Boolean(service?.enabled), required: Boolean(service?.required), caption: service?.caption || service?.title || service?.key || '',
-    description: service?.description || '', price: service?.price ?? '', individualPrice: Boolean(service?.individualPrice),
+    description: service?.description || '', price: optionalNumber(service?.price) === null ? (service?.price ?? '') : Math.ceil(Number(service.price)), individualPrice: Boolean(service?.individualPrice),
     params, incompatibleServices
   };
 }
@@ -434,13 +434,15 @@ function deliveryCompanyMaps(companies = []) {
   return { byId, byName };
 }
 function compactTariff(item, calculatorOrder = 0, companyLabelsById = new Map()) {
-  const inputPrice = optionalNumber(item.input_price ?? item.inputPrice);
+  const rawInputPrice = optionalNumber(item.input_price ?? item.inputPrice);
+  const inputPrice = rawInputPrice === null ? null : Math.ceil(rawInputPrice);
   const retailPrice = optionalNumber(item.retailPrice ?? item.retail_price);
   const userPriceWithoutDiscount = optionalNumber(item.user_price_without_discount);
   const minPrice = optionalNumber(item.minPrice);
   const inputPricePercent = optionalNumber(item.inputPricePercent);
   const minPricePercent = optionalNumber(item.minPricePercent);
-  const servicesPrice = optionalNumber(item.servicesPrice);
+  const rawServicesPrice = optionalNumber(item.servicesPrice);
+  const servicesPrice = rawServicesPrice === null ? null : Math.ceil(rawServicesPrice);
   const returnService = item.return_service || {};
   const deliveryCompanyId = item.deliveryCompany ?? '';
   const referenceLabel = companyLabelsById.get(Number(deliveryCompanyId));
@@ -463,7 +465,7 @@ function compactTariff(item, calculatorOrder = 0, companyLabelsById = new Map())
     sort: optionalNumber(item.sort), isAgent: Boolean(item.isAgent), priority: item.priority || null,
     servicesPrice, discountPercent: optionalNumber(item.discountPercent),
     discount: calculateDiscount(item.user_price, retailPrice), returnServiceAllowed: Boolean(returnService.allowed),
-    returnServicePrice: optionalNumber(returnService.price), services: Array.isArray(item.services) ? item.services.map(compactService) : []
+    returnServicePrice: optionalNumber(returnService.price) === null ? null : Math.ceil(Number(returnService.price)), services: Array.isArray(item.services) ? item.services.map(compactService) : []
   };
 }
 function compactOrderCreatorService(service) {
@@ -608,10 +610,10 @@ async function calculate(payload) {
   const exclusions = Array.isArray(payload.exclusions) ? [...payload.exclusions].sort() : [...(project.defaultExclusions || [])].sort();
   const bestExclusions = Array.isArray(payload.bestExclusions) ? [...payload.bestExclusions].sort() : [];
   const bestMethodMode = payload.bestMethodMode || project.defaultBestMethod;
-  const timeoutMs = Math.min(180000, Math.max(30000, Number(payload.timeoutMs) || 90000));
-  const retries = Math.min(3, Math.max(0, payload.retries === undefined ? 2 : Number(payload.retries) || 0));
+  const timeoutMs = Math.min(180000, Math.max(30000, Number(payload.timeoutMs) || 120000));
+  const retries = Math.min(3, Math.max(0, payload.retries === undefined ? 0 : Number(payload.retries) || 0));
   const compactForOrderCreator = Boolean(payload.orderCreatorCompact);
-  const cacheKey = ['calc:v15', compactForOrderCreator ? 'order' : 'full', project.id, userId, senderCity, recipientCity, cargoType, cargoSeats, cargoWeight, cargoLength, cargoWidth, cargoHeight, bestMethodMode, exclusions.join(','), bestExclusions.join(',')].join('|');
+  const cacheKey = ['calc:v16', compactForOrderCreator ? 'order' : 'full', project.id, userId, senderCity, recipientCity, cargoType, cargoSeats, cargoWeight, cargoLength, cargoWidth, cargoHeight, bestMethodMode, exclusions.join(','), bestExclusions.join(',')].join('|');
   const calculationContext = { projectId: project.id, clientId: userId, signature: cacheKey };
   if (!payload.force) {
     const cached = getCache(cacheKey);
@@ -629,7 +631,7 @@ async function calculate(payload) {
     const attributes = {
       sender_city: senderCity, recipient_city: recipientCity, cargo_type: cargoType,
       cargo_seats_number: cargoSeats, cargo_weight: cargoWeight, cargo_length: cargoLength,
-      cargo_width: cargoWidth, cargo_height: cargoHeight, user_id: userId, deliveryCompany: 0
+      cargo_width: cargoWidth, cargo_height: cargoHeight, user_id: userId
     };
     Object.entries(attributes).forEach(([key, value]) => url.searchParams.set(`attributes[${key}]`, String(value)));
     url.searchParams.set('authToken', authToken);

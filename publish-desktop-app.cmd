@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-set "VERSION=0.5.2"
+set "VERSION=0.5.3"
 set "OUTPUT=%CD%\release\OPS-Toolkit-Desktop-App"
 
 if exist "%OUTPUT%" rmdir /s /q "%OUTPUT%"

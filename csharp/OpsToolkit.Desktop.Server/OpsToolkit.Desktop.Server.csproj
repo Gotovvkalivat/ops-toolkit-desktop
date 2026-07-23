@@ -6,7 +6,7 @@
     <InvariantGlobalization>false</InvariantGlobalization>
     <AssemblyName>OpsToolkit.Desktop.Server</AssemblyName>
     <RootNamespace>OpsToolkit.Desktop.Server</RootNamespace>
-    <Version>0.5.2</Version>
+    <Version>0.5.3</Version>
     <NuGetAudit>false</NuGetAudit>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>

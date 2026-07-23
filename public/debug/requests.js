@@ -55,7 +55,7 @@
       if (outcome && entry.outcome !== outcome) return false;
       if (method && entry.method !== method) return false;
       if (!search) return true;
-      return [entry.method, entry.url, entry.status, entry.outcome, entry.error, entry.requestBody]
+      return [entry.method, entry.url, entry.status, entry.outcome, entry.error, entry.requestBody, entry.responseBody]
         .some(value => String(value ?? '').toLowerCase().includes(search));
     });
   }
@@ -83,6 +83,7 @@
           <div><span>Размер запроса</span><code>${escapeHtml(formatBytes(entry.requestBytes))}</code></div>
           <div><span>Размер ответа</span><code>${escapeHtml(formatBytes(entry.responseBytes))}</code></div>
           ${entry.requestBody ? `<div class="wide"><span>Тело запроса (секреты скрыты)</span><code>${escapeHtml(entry.requestBody)}</code></div>` : ''}
+          ${entry.responseBody ? `<div class="wide"><span>Ответ API (секреты скрыты)</span><code>${escapeHtml(entry.responseBody)}</code></div>` : ''}
           ${entry.error ? `<div class="wide"><span>Ошибка</span><code>${escapeHtml(entry.error)}</code></div>` : ''}
         </div>
       </details>`;

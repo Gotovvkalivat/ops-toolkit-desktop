@@ -9,7 +9,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-const string AppVersion = "0.5.2";
+const string AppVersion = "0.5.3";
 
 var publicPath = ResolvePublicPath();
 var port = FindAvailablePort(ReadPort());
@@ -20,6 +20,12 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
     Args = args,
     WebRootPath = publicPath
+});
+builder.Logging.ClearProviders();
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.SingleLine = true;
+    options.TimestampFormat = "HH:mm:ss ";
 });
 builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -397,7 +403,14 @@ sealed class ApiRuntime : IDisposable
             ["data"] = new JsonArray
             {
                 new JsonObject { ["deliveryCompany"] = 2, ["deliveryCompanyLabel"] = "Достависта", ["tariffCaption"] = "Курьер", ["deliveryMethod"] = 1, ["user_price"] = 100 },
-                new JsonObject { ["deliveryCompany"] = 0, ["deliveryCompanyLabel"] = "CSE", ["tariffCaption"] = "Стандарт", ["deliveryMethod"] = 1, ["user_price"] = 200, ["minPeriod"] = 1, ["maxPeriod"] = 3 },
+                new JsonObject
+                {
+                    ["deliveryCompany"] = 0, ["deliveryCompanyLabel"] = "CSE", ["tariffCaption"] = "Стандарт",
+                    ["deliveryMethod"] = 1, ["user_price"] = 200, ["input_price"] = 702.2, ["servicesPrice"] = 97.6,
+                    ["return_service"] = new JsonObject { ["allowed"] = true, ["price"] = 122.1 },
+                    ["services"] = new JsonArray(new JsonObject { ["key"] = "test", ["caption"] = "Тестовая услуга", ["price"] = 39.04 }),
+                    ["minPeriod"] = 1, ["maxPeriod"] = 3
+                },
                 new JsonObject { ["deliveryCompany"] = 4, ["deliveryCompanyLabel"] = "DPD", ["tariffCaption"] = "Эконом", ["deliveryMethod"] = 1, ["user_price"] = 300 }
             }
         };
@@ -414,6 +427,7 @@ sealed class ApiRuntime : IDisposable
         var cse = (processed["allTariffs"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(item => Value.String(item, "deliveryCompanyLabel") == "CSE") ?? [];
         var sanitizedUrl = RequestLogSanitizer.Url("https://example.local/api?authToken=secret&cargo_weight=2.5&sender_address=Москва");
         var sanitizedBody = RequestLogSanitizer.Body("""{"password":"secret","cargoWeight":2.5,"sender":{"phone":"79990000000"}}""");
+        var sanitizedResponse = RequestLogSanitizer.Response("""{"status":true,"authToken":"secret","data":{"recipient_phone":"79990000000","price":702.2}}""");
         var checks = new
         {
             deterministicKey = keyA == keyARepeat,
@@ -422,16 +436,23 @@ sealed class ApiRuntime : IDisposable
             transportOnlyBest = bestCompany == "CSE",
             bestFilterApplied = filteredBestCompany == "DPD",
             periodRangePreserved = Value.Double(cse, "minPeriod") == 1 && Value.Double(cse, "maxPeriod") == 3,
+            moneyRoundedUp = Value.Double(cse, "inputPrice") == 703
+                && Value.Double(cse, "servicesPrice") == 98
+                && Value.Double(cse, "returnServicePrice") == 123
+                && Value.Double((cse["services"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault() ?? [], "price") == 40,
             outboundSecretsMasked = !sanitizedUrl.Contains("secret", StringComparison.Ordinal)
                 && !sanitizedUrl.Contains("Москва", StringComparison.Ordinal)
                 && sanitizedUrl.Contains("cargo_weight=2.5", StringComparison.Ordinal)
                 && !sanitizedBody.Contains("secret", StringComparison.Ordinal)
                 && !sanitizedBody.Contains("79990000000", StringComparison.Ordinal)
+                && !sanitizedResponse.Contains("secret", StringComparison.Ordinal)
+                && !sanitizedResponse.Contains("79990000000", StringComparison.Ordinal)
+                && sanitizedResponse.Contains("702.2", StringComparison.Ordinal)
         };
         return new
         {
             ok = checks.deterministicKey && checks.clientsSeparated && checks.presentationFiltersReuseNetworkCache && checks.transportOnlyBest
-                && checks.bestFilterApplied && checks.periodRangePreserved && checks.outboundSecretsMasked,
+                && checks.bestFilterApplied && checks.periodRangePreserved && checks.moneyRoundedUp && checks.outboundSecretsMasked,
             checks,
             bestCompany,
             filteredBestCompany,
@@ -754,12 +775,11 @@ sealed class ApiRuntime : IDisposable
                 ["attributes[cargo_width]"] = CargoNumber(payload, "cargoWidth", 10).ToString(CultureInfo.InvariantCulture),
                 ["attributes[cargo_height]"] = CargoNumber(payload, "cargoHeight", 10).ToString(CultureInfo.InvariantCulture),
                 ["attributes[user_id]"] = userId,
-                ["attributes[deliveryCompany]"] = "0",
                 ["authToken"] = authToken
             };
             var url = BuildUrl(project.BaseUrl + "/api/cse/calc", attributes);
-            var timeout = Math.Clamp(Value.Int(payload, "timeoutMs", 90_000), 30_000, 180_000);
-            var retries = Math.Clamp(Value.Int(payload, "retries", 2), 0, 3);
+            var timeout = Math.Clamp(Value.Int(payload, "timeoutMs", 120_000), 30_000, 180_000);
+            var retries = Math.Clamp(Value.Int(payload, "retries", 0), 0, 3);
             var max = Math.Clamp(Value.Int(payload, "maxConcurrentCalculations", MaxCalculationConcurrency), 1, MaxCalculationConcurrency);
             var remote = await FetchJsonAsync(HttpMethod.Get, url, null, null, timeout, retries, null, _calculationGate, max, cancellationToken);
             if (!Value.Bool(remote, "status") || remote["data"] is not JsonArray remoteTariffs || remoteTariffs.Count == 0)
@@ -962,7 +982,7 @@ sealed class ApiRuntime : IDisposable
             ["maxPeriod"] = Number(item, "maxPeriod", "periodMax", "max_period", "deliveryPeriodMax", "delivery_period_max"),
             ["userPrice"] = userPrice,
             ["userPriceWithoutDiscount"] = Number(item, "user_price_without_discount"),
-            ["inputPrice"] = Number(item, "input_price", "inputPrice"),
+            ["inputPrice"] = CeilingMoney(Number(item, "input_price", "inputPrice")),
             ["inputPricePercent"] = Number(item, "inputPricePercent"),
             ["retailPrice"] = retailPrice,
             ["minPrice"] = Number(item, "minPrice"),
@@ -980,11 +1000,11 @@ sealed class ApiRuntime : IDisposable
             ["sort"] = Number(item, "sort"),
             ["isAgent"] = Value.Bool(item, "isAgent"),
             ["priority"] = Value.Node(item, "priority"),
-            ["servicesPrice"] = Number(item, "servicesPrice"),
+            ["servicesPrice"] = CeilingMoney(Number(item, "servicesPrice")),
             ["discountPercent"] = Number(item, "discountPercent"),
             ["discount"] = Discount(userPrice, retailPrice),
             ["returnServiceAllowed"] = Value.Bool(returnService, "allowed"),
-            ["returnServicePrice"] = Number(returnService, "price"),
+            ["returnServicePrice"] = CeilingMoney(Number(returnService, "price")),
             ["services"] = services
         };
     }
@@ -1020,7 +1040,7 @@ sealed class ApiRuntime : IDisposable
             ["required"] = Value.Bool(service, "required"),
             ["caption"] = First(Value.String(service, "caption"), Value.String(service, "title"), Value.String(service, "key")),
             ["description"] = Value.String(service, "description"),
-            ["price"] = Value.Node(service, "price"),
+            ["price"] = MoneyNode(service, "price"),
             ["individualPrice"] = Value.Bool(service, "individualPrice"),
             ["params"] = parameters,
             ["incompatibleServices"] = CloneCollection(service["incompatibleServices"])
@@ -1111,6 +1131,7 @@ sealed class ApiRuntime : IDisposable
             var requestSent = false;
             int? responseStatus = null;
             var responseBytes = 0;
+            var responseBody = "";
             var outcome = "network-error";
             var logError = "";
             TimeSpan? responseRetryDelay = null;
@@ -1135,6 +1156,7 @@ sealed class ApiRuntime : IDisposable
                 using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
                 responseStatus = (int)response.StatusCode;
                 var text = await response.Content.ReadAsStringAsync(timeout.Token);
+                responseBody = text;
                 responseBytes = Encoding.UTF8.GetByteCount(text);
                 JsonObject json;
                 try { json = JsonNode.Parse(text) as JsonObject ?? new JsonObject { ["raw"] = text }; }
@@ -1197,6 +1219,7 @@ sealed class ApiRuntime : IDisposable
                         retries + 1,
                         outcome,
                         responseBytes,
+                        responseBody,
                         logError));
                 }
                 if (responseRetryDelay is { } delay) await Task.Delay(delay, cancellationToken);
@@ -1242,6 +1265,15 @@ sealed class ApiRuntime : IDisposable
             if (double.TryParse(node.ToString().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)) return value;
         }
         return null;
+    }
+
+    private static double? CeilingMoney(double? value) =>
+        value is null || !double.IsFinite(value.Value) ? null : Math.Ceiling(value.Value);
+
+    private static JsonNode? MoneyNode(JsonObject source, string key)
+    {
+        var value = Number(source, key);
+        return value is null ? Value.Node(source, key) : JsonValue.Create(Math.Ceiling(value.Value));
     }
 
     private static double? Discount(double userPrice, double? retailPrice)
@@ -1737,10 +1769,11 @@ sealed record OutboundRequestEntry(
     int RequestBytes,
     int ResponseBytes,
     string RequestBody,
+    string ResponseBody,
     string Error)
 {
     public static OutboundRequestEntry Create(string id, string method, string url, string? body, int? status,
-        double durationMs, int attempt, int totalAttempts, string outcome, int responseBytes, string error) =>
+        double durationMs, int attempt, int totalAttempts, string outcome, int responseBytes, string? responseBody, string error) =>
         new(
             id,
             DateTimeOffset.UtcNow,
@@ -1754,6 +1787,7 @@ sealed record OutboundRequestEntry(
             body is null ? 0 : Encoding.UTF8.GetByteCount(body),
             responseBytes,
             RequestLogSanitizer.Body(body),
+            RequestLogSanitizer.Response(responseBody),
             RequestLogSanitizer.Text(error, 500));
 }
 
@@ -1908,6 +1942,20 @@ static class RequestLogSanitizer
         catch
         {
             return $"[тело не в JSON, {Encoding.UTF8.GetByteCount(raw)} байт]";
+        }
+    }
+
+    public static string Response(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+        try
+        {
+            var node = JsonNode.Parse(raw);
+            return Text(SanitizeNode(node, "").ToJsonString(), 12_000);
+        }
+        catch
+        {
+            return $"[ответ не JSON, {Encoding.UTF8.GetByteCount(raw)} байт]";
         }
     }
 

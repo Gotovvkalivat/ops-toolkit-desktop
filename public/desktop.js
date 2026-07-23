@@ -273,7 +273,6 @@ function moduleSettingsMarkup(settings) {
     <div class="module-settings-grid">
       <label class="field"><span>Лучший тариф</span><select data-module-setting="bestMethodMode">${settingsOptions([['door','Только дверь-дверь'],['all','Любой метод доставки']], settings.bestMethodMode)}</select></label>
       <label class="field"><span>Параллельных расчётов</span><select data-module-setting="concurrency">${settingsOptions([[1,'1 — бережно'],[2,'2'],[3,'3 — рекомендуется'],[4,'4'],[5,'5'],[6,'6']], settings.concurrency)}</select></label>
-      <label class="field"><span>Задержка автопоиска</span><select data-module-setting="debounceMs">${settingsOptions([[400,'0,4 сек.'],[650,'0,65 сек.'],[900,'0,9 сек.'],[1200,'1,2 сек.']], settings.debounceMs)}</select></label>
       <label class="field"><span>Ожидание ответа</span><select data-module-setting="calcTimeoutMs">${settingsOptions([[60000,'60 сек.'],[90000,'90 сек.'],[120000,'120 сек.'],[180000,'180 сек.']], settings.calcTimeoutMs)}</select></label>
       <label class="field"><span>Повторов после ошибки</span><select data-module-setting="calcRetries">${settingsOptions([[0,'Не повторять'],[1,'1 повтор'],[2,'2 повтора'],[3,'3 повтора']], settings.calcRetries)}</select></label>
     </div>

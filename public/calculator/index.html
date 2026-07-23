@@ -163,8 +163,8 @@
             <div class="settings-grid two">
               <label>Выбор лучшего тарифа<select id="bestMethodSelect"><option value="door">Только дверь-дверь</option><option value="all">Любой метод</option></select></label>
               <label>Параллельных расчётов<select id="concurrencySelect"><option value="1">1 — бережно</option><option value="2">2</option><option value="3">3 — рекомендуется</option><option value="4">4</option><option value="5">5</option><option value="6">6 — быстрее</option></select></label>
-              <label>Задержка автопоиска<select id="debounceSelect"><option value="400">0,4 сек.</option><option value="650">0,65 сек.</option><option value="900">0,9 сек.</option><option value="1200">1,2 сек.</option></select></label>
-              <label>Ожидание калькулятора<select id="calcTimeoutSelect"><option value="60000">60 сек.</option><option value="90000">90 сек. — рекомендуется</option><option value="120000">120 сек.</option><option value="180000">180 сек.</option></select></label>
+              <select id="debounceSelect" class="hidden" aria-hidden="true" tabindex="-1"><option value="900" selected>0,9 сек.</option></select>
+              <label>Ожидание калькулятора<select id="calcTimeoutSelect"><option value="60000">60 сек.</option><option value="90000">90 сек.</option><option value="120000" selected>120 сек. — рекомендуется</option><option value="180000">180 сек.</option></select></label>
               <label>Повторов после ошибки<select id="calcRetriesSelect"><option value="0">Не повторять</option><option value="1">1 повтор</option><option value="2">2 повтора</option><option value="3">3 повтора</option></select></label>
             </div>
             <div id="exclusionsSettingsCard" class="settings-card">
@@ -327,7 +327,7 @@
           <select id="companyRouteFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
           <select id="companyUrgencyFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
           <select id="companyMethodFilter" class="hidden" aria-hidden="true"><option value=""></option></select>
-          <label class="filter-search-wide analytics-filter-search">Поиск по результатам<input id="companySearchInput" type="search" placeholder="ТК, направление, срочность, тариф или тип доставки…"></label>
+          <label class="filter-search-wide analytics-filter-search" aria-label="Поиск по аналитике"><input id="companySearchInput" type="search" placeholder="Поиск по ТК, направлению, срочности, тарифу или типу доставки…"></label>
           <div class="analytics-filter-facets">
             <details id="companyCompanyFilterDetails" class="choice-filter"><summary><span>ТК</span><b id="companyCompanyFilterSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти ТК…" data-choice-search-target="companyCompanyFilterOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-company-filter-action="company-all">Все</button><button type="button" class="button mini ghost" data-company-filter-action="company-none">Снять</button><button type="button" class="button mini ghost" data-company-filter-action="company-invert">Инвертировать</button></div><div id="companyCompanyFilterOptions" class="choice-filter-options"></div></div></details>
             <details id="companyTypeFilterDetails" class="choice-filter"><summary><span>Тип доставки</span><b id="companyTypeFilterSummary">Все рассчитанные</b></summary><div class="choice-filter-panel"><input class="choice-filter-search" type="search" placeholder="Найти тип…" data-choice-search-target="companyTypeFilterOptions"><div class="choice-filter-actions"><button type="button" class="button mini secondary" data-company-filter-action="type-all">Все</button><button type="button" class="button mini ghost" data-company-filter-action="type-none">Снять</button><button type="button" class="button mini ghost" data-company-filter-action="type-invert">Инвертировать</button></div><div id="companyTypeFilterOptions" class="choice-filter-options"></div></div></details>
@@ -384,7 +384,7 @@
           <label id="managerBeatMarketLabel">Дешевле рынка, % <span class="help" data-tip="Целевое преимущество относительно лучшей цены другой выбранной ТК на том же маршруте.">?</span><input id="managerBeatMarketInput" type="number" min="0" max="30" value="1"></label>
           <div class="analytics-auto-status align-bottom updated" data-tip="После короткой паузы таблица автоматически пересчитывается по текущим расчётам, фильтрам и выбранным тарифам. После обновления появится уведомление."><span class="status-dot"></span><div><b>Автообновление</b><small id="managerUpdatedAt">По текущим расчётам</small></div><button id="refreshManagerBtn" type="button" class="button mini secondary analytics-refresh-button">Обновить</button></div>
           <div class="toolbar-group align-bottom"><button id="copyManagerBtn" class="button secondary">Копировать</button><button id="downloadManagerXlsxBtn" class="button primary">XLSX</button></div>
-          <details class="manager-columns-picker"><summary>Столбцы таблицы <span id="managerColumnsCount"></span></summary><div id="managerColumnFields" class="metric-checkboxes"></div></details>
+          <details class="manager-columns-picker"><summary>Настроить колонки <span id="managerColumnsCount"></span></summary><div id="managerColumnFields" class="metric-checkboxes"></div></details>
         </div>
         <div class="manager-summary" id="managerSummary"></div>
         <div class="tariffs-wrap"><table id="managerTable" class="tariffs-table manager-table"><thead id="managerTableHead"></thead><tbody id="managerTableBody"></tbody></table></div>
@@ -398,6 +398,7 @@
           <label>Скидка в матрице <span class="help" data-tip="Текущая скидка: для КД от розницы, для ME и OPS от цены без скидки. Активная скидка берётся из ответа ЛК.">?</span><select id="matrixDiscountModeSelect"><option value="">Не показывать</option><option value="current">Текущая скидка</option><option value="active">Активная скидка</option></select></label>
           <div class="analytics-auto-status align-bottom updated" data-tip="Матрица перестраивается по общей выборке аналитики."><span class="status-dot"></span><div><b>По общей выборке</b><small id="matrixUpdatedAt">По текущим расчётам</small></div><button id="refreshMatrixBtn" type="button" class="button mini secondary analytics-refresh-button">Обновить</button></div>
           <div class="toolbar-group align-bottom"><button id="copyMatrixBtn" class="button secondary">Копировать</button><button id="downloadMatrixXlsxBtn" class="button primary">XLSX</button></div>
+          <details class="manager-columns-picker"><summary>Настроить колонки <span id="matrixColumnsCount"></span></summary><div id="matrixColumnFields" class="metric-checkboxes"></div></details>
         </div>
         <div class="manager-summary" id="matrixSummary"></div>
         <div class="tariffs-wrap"><table id="matrixTable" class="tariffs-table manager-table"><thead id="matrixTableHead"></thead><tbody id="matrixTableBody"></tbody></table></div>
@@ -472,7 +473,7 @@
         </details>
 
         <details class="implementation-section"><summary>Нагрузка, таймауты и повторы</summary>
-          <p>Одновременно запускается от 1 до 6 расчётов. Одинаковые активные запросы объединяются в один. Таймаут по умолчанию — 90 секунд. После таймаута, HTTP 429 или ошибки 5xx выполняется до двух повторов с увеличивающейся задержкой и небольшим случайным сдвигом. Остановка прекращает запуск новых строк, но не обрывает уже отправленный запрос.</p>
+          <p>Одновременно запускается от 1 до 6 расчётов. Одинаковые активные запросы объединяются в один. Таймаут по умолчанию — 120 секунд, автоматические повторы отключены. Остановка прекращает запуск новых строк, но не обрывает уже отправленный запрос.</p>
         </details>
 
         <details class="implementation-section"><summary>Как выбирается лучший тариф</summary>

@@ -121,14 +121,14 @@
     ops: { enabled:false, email:'', password:'', authChecked:false, inn:'', userId:'', userDisplay:'', exclusions:defaultCompanyExclusions(), bestExclusions:[], bestMethodMode:'all' }
   };
   const DEFAULT_SETTINGS = {
-    tokenDaData:'', saveSecrets:true, secretPolicyVersion:2, companyExclusionsVersion:2, concurrency:3, debounceMs:650, calcTimeoutMs:90000, calcRetries:2,
+    tokenDaData:'', saveSecrets:true, secretPolicyVersion:2, companyExclusionsVersion:2, concurrency:3, debounceMs:900, calcTimeoutMs:120000, calcRetries:0,
     activeProject:'kd', projects: JSON.parse(JSON.stringify(DEFAULT_PROJECT_SETTINGS)),
     exportCompanySheets:true, exportMainCompanyColumns:false, exportAnalyticsSheet:false, companySheetLayout:'wide',
     mainExportPreset:'compact', tariffExportPreset:'compact', mainExportFields:[...MAIN_EXPORT_PRESETS.compact], tariffExportFields:[...TARIFF_EXPORT_PRESETS.compact],
     advancedTariffView:false, showServiceInfo:false, theme:'system', density:'medium', overviewColumnOrder:'logistics',
     comparisonMetrics:[...COMPARISON_PRESETS.sale], comparisonTariffMode:'cheapest', comparisonPeriodMax:'', salesFloorMode:'strict', salesFloorPercent:10, salesBeatMarketPct:1,
     managerView:'recommendations', managerBaseCompany:'cheapest', managerTariffMode:'cheapest', managerPeriodMax:'', managerMethod:'', managerPreset:'custom', managerFloorMode:'strict', managerFloorPercent:10, managerBeatMarketPct:1, managerVisibleColumns:[],
-    matrixDiscountMode:'', analyticsFiltersCollapsed:false, matrixMethodByProject:{kd:'',me:'',ops:''},
+    matrixDiscountMode:'', matrixVisibleColumns:[], analyticsFiltersCollapsed:false, matrixMethodByProject:{kd:'',me:'',ops:''},
     analyticsMethodByProject:{kd:'',me:'',ops:''}, analyticsSelections:{kd:{},me:{},ops:{}}
   };
   const state = {
@@ -408,11 +408,11 @@
         state.settings.tokenDaData = '';
       }
       state.settings.concurrency = Math.min(6, Math.max(1, Number(state.settings.concurrency) || 3));
-      state.settings.debounceMs = Number(state.settings.debounceMs) || 650;
+      state.settings.debounceMs = 900;
       state.settings.exclusions = Array.isArray(state.settings.exclusions) ? state.settings.exclusions : [];
       state.settings.bestMethodMode = state.settings.bestMethodMode === 'all' ? 'all' : 'door';
-      state.settings.calcTimeoutMs = Math.min(120000, Math.max(30000, Number(state.settings.calcTimeoutMs) || 90000));
-      state.settings.calcRetries = Math.min(2, Math.max(0, Number.isFinite(Number(state.settings.calcRetries)) ? Number(state.settings.calcRetries) : 2));
+      state.settings.calcTimeoutMs = Math.min(180000, Math.max(30000, Number(state.settings.calcTimeoutMs) || 120000));
+      state.settings.calcRetries = Math.min(3, Math.max(0, Number.isFinite(Number(state.settings.calcRetries)) ? Number(state.settings.calcRetries) : 0));
       state.settings.exportCompanySheets = state.settings.exportCompanySheets !== false;
       state.settings.exportMainCompanyColumns = Boolean(state.settings.exportMainCompanyColumns);
       state.settings.companySheetLayout = state.settings.companySheetLayout === 'long' ? 'long' : 'wide';
@@ -664,8 +664,8 @@
     els.concurrencySelect.value = String(s.concurrency);
     els.debounceSelect.value = String(s.debounceMs);
     els.bestMethodSelect.value = s.bestMethodMode || 'door';
-    els.calcTimeoutSelect.value = String(s.calcTimeoutMs || 90000);
-    els.calcRetriesSelect.value = String(s.calcRetries ?? 2);
+    els.calcTimeoutSelect.value = String(s.calcTimeoutMs || 120000);
+    els.calcRetriesSelect.value = String(s.calcRetries ?? 0);
     els.exportCompanySheetsToggle.checked = s.exportCompanySheets !== false;
     els.exportMainCompanyColumnsToggle.checked = Boolean(s.exportMainCompanyColumns);
     els.companySheetLayoutSelect.value = s.companySheetLayout === 'long' ? 'long' : 'wide';
@@ -687,10 +687,10 @@
       tokenDaData: els.dadataInput.value.trim(), inn: els.innInput.value.trim(),
       saveSecrets: els.savePasswordToggle.checked,
       concurrency: Number(els.concurrencySelect.value) || 3,
-      debounceMs: Number(els.debounceSelect.value) || 650,
+      debounceMs: 900,
       bestMethodMode: els.bestMethodSelect.value === 'all' ? 'all' : 'door',
-      calcTimeoutMs: Math.min(120000, Math.max(30000, Number(els.calcTimeoutSelect.value) || 90000)),
-      calcRetries: Math.min(2, Math.max(0, Number(els.calcRetriesSelect.value) || 0)),
+      calcTimeoutMs: Math.min(180000, Math.max(30000, Number(els.calcTimeoutSelect.value) || 120000)),
+      calcRetries: Math.min(3, Math.max(0, Number(els.calcRetriesSelect.value) || 0)),
       exportCompanySheets: els.exportCompanySheetsToggle.checked,
       exportMainCompanyColumns: els.exportMainCompanyColumnsToggle.checked,
       companySheetLayout: els.companySheetLayoutSelect.value === 'long' ? 'long' : 'wide',
@@ -1528,7 +1528,7 @@
   }
   function serviceText(service) {
     const price = Number(service?.price);
-    const suffix = Number.isFinite(price) && price > 0 ? ` (${formatValue(price)} ₽)` : '';
+    const suffix = Number.isFinite(price) && price > 0 ? ` (${formatValue(Math.ceil(price))} ₽)` : '';
     return `${service?.caption || service?.key || 'Услуга'}${suffix}`;
   }
   function servicesSummary(item, requiredOnly = false) {
@@ -2235,9 +2235,9 @@
       state.settings.activeProject = PROJECTS[state.settings.activeProject] ? state.settings.activeProject : 'kd';
       state.settings.tokenDaData = stored.tokenDaData || '';
       state.settings.concurrency = Math.min(6, Math.max(1, Number(state.settings.concurrency) || 3));
-      state.settings.debounceMs = Number(state.settings.debounceMs) || 650;
-      state.settings.calcTimeoutMs = Math.min(180000, Math.max(30000, Number(state.settings.calcTimeoutMs) || 90000));
-      state.settings.calcRetries = Math.min(3, Math.max(0, Number.isFinite(Number(state.settings.calcRetries)) ? Number(state.settings.calcRetries) : 2));
+      state.settings.debounceMs = 900;
+      state.settings.calcTimeoutMs = Math.min(180000, Math.max(30000, Number(state.settings.calcTimeoutMs) || 120000));
+      state.settings.calcRetries = Math.min(3, Math.max(0, Number.isFinite(Number(state.settings.calcRetries)) ? Number(state.settings.calcRetries) : 0));
       state.settings.exportCompanySheets = state.settings.exportCompanySheets !== false;
       state.settings.exportMainCompanyColumns = Boolean(state.settings.exportMainCompanyColumns);
       state.settings.exportAnalyticsSheet = Boolean(state.settings.exportAnalyticsSheet);
@@ -2635,8 +2635,8 @@
     const mainExportFields = sanitizeFieldSelection(checkedFields(els.mainExportFields),MAIN_EXPORT_FIELDS,MAIN_EXPORT_PRESETS.compact);
     const tariffExportFields = sanitizeFieldSelection(checkedFields(els.tariffExportFields),TARIFF_EXPORT_FIELDS,TARIFF_EXPORT_PRESETS.compact);
     return {
-      tokenDaData:els.dadataInput.value.trim(), saveSecrets:els.savePasswordToggle.checked, secretPolicyVersion:2, companyExclusionsVersion:2, concurrency:Number(els.concurrencySelect.value)||3, debounceMs:Number(els.debounceSelect.value)||650,
-      calcTimeoutMs:Math.min(180000,Math.max(30000,Number(els.calcTimeoutSelect.value)||90000)), calcRetries:Math.min(3,Math.max(0,Number(els.calcRetriesSelect.value)||0)),
+      tokenDaData:els.dadataInput.value.trim(), saveSecrets:els.savePasswordToggle.checked, secretPolicyVersion:2, companyExclusionsVersion:2, concurrency:Number(els.concurrencySelect.value)||3, debounceMs:900,
+      calcTimeoutMs:Math.min(180000,Math.max(30000,Number(els.calcTimeoutSelect.value)||120000)), calcRetries:Math.min(3,Math.max(0,Number(els.calcRetriesSelect.value)||0)),
       exportCompanySheets:els.exportCompanySheetsToggle.checked, exportMainCompanyColumns:els.exportMainCompanyColumnsToggle.checked, exportAnalyticsSheet:els.exportAnalyticsSheetToggle.checked, companySheetLayout:els.companySheetLayoutSelect.value === 'long' ? 'long' : 'wide',
       mainExportFields, tariffExportFields, mainExportPreset:presetForSelection(mainExportFields,MAIN_EXPORT_PRESETS), tariffExportPreset:presetForSelection(tariffExportFields,TARIFF_EXPORT_PRESETS),
       theme:['system','light','dark'].includes(els.themeSelect.value)?els.themeSelect.value:'system', density:['micro','compact','medium','spacious'].includes(els.densitySelect.value)?els.densitySelect.value:'medium',
@@ -3712,6 +3712,10 @@
     return number;
   }
   function hasOptionalNumber(value, options = {}) { return optionalNumeric(value, options) !== null; }
+  function ceilingMoney(value, options = {}) {
+    const number = optionalNumeric(value, options);
+    return number === null ? null : Math.ceil(number);
+  }
   function moneyOrDash(value, options = {}) {
     const number = optionalNumeric(value, options);
     return number === null ? '—' : `${formatValue(number)} ₽`;
@@ -3723,7 +3727,7 @@
   function tariffPriceModel(item) {
     const userPrice = optionalNumeric(item?.userPrice, { positive:true });
     const userPriceWithoutDiscount = optionalNumeric(item?.userPriceWithoutDiscount, { positive:true });
-    const inputPrice = optionalNumeric(item?.inputPrice, { nonNegative:true });
+    const inputPrice = ceilingMoney(item?.inputPrice, { nonNegative:true });
     const minPrice = optionalNumeric(item?.minPrice, { positive:true });
     const inputPricePercent = optionalNumeric(item?.inputPricePercent, { nonNegative:true });
     const minPricePercent = optionalNumeric(item?.minPricePercent, { nonNegative:true });
@@ -3764,7 +3768,7 @@
       requestNo:index+1,senderQuery:row.senderQuery,senderKd:row.senderResolved?.placeText||row.senderResolved?.kdText||'',recipientQuery:row.recipientQuery,recipientKd:row.recipientResolved?.placeText||row.recipientResolved?.kdText||'',
       weight:parsePositive(row.weight,.1),seats:Math.round(parsePositive(row.seats,1)),length:parsePositive(row.length,10),width:parsePositive(row.width,10),height:parsePositive(row.height,10),
       company:item?.deliveryCompanyLabel||'',urgency:item?.urgencyLabel||'',tariffCaption:item?tariffDisplayName(item):'',method:item?.deliveryTypeLabel||item?.deliveryMethodLabel||'',maxPeriod:periodExportValue(item?.maxPeriod),
-      userPrice:safeNumber(item?.userPrice),userPriceWithoutDiscount:safeNumber(item?.userPriceWithoutDiscount),inputPrice:safeNumber(item?.inputPrice),inputPricePercent:safeNumber(item?.inputPricePercent),retailPrice:safeNumber(item?.retailPrice),servicesPrice:safeNumber(item?.servicesPrice),activeDiscount:safeNumber(item?.activeDiscount),discountPercent:safeNumber(item?.discountPercent),calculatedDiscount:safeNumber(item?.discount),minPrice:safeNumber(item?.minPrice),minPricePercent:safeNumber(item?.minPricePercent),returnAllowed:item?.returnServiceAllowed?'Да':'Нет',returnPrice:safeNumber(item?.returnServicePrice),includedServices:servicesSummary(item,true),allServices:servicesSummary(item,false)
+      userPrice:safeNumber(item?.userPrice),userPriceWithoutDiscount:safeNumber(item?.userPriceWithoutDiscount),inputPrice:safeNumber(ceilingMoney(item?.inputPrice,{nonNegative:true})),inputPricePercent:safeNumber(item?.inputPricePercent),retailPrice:safeNumber(item?.retailPrice),servicesPrice:safeNumber(ceilingMoney(item?.servicesPrice,{nonNegative:true})),activeDiscount:safeNumber(item?.activeDiscount),discountPercent:safeNumber(item?.discountPercent),calculatedDiscount:safeNumber(item?.discount),minPrice:safeNumber(item?.minPrice),minPricePercent:safeNumber(item?.minPricePercent),returnAllowed:item?.returnServiceAllowed?'Да':'Нет',returnPrice:safeNumber(ceilingMoney(item?.returnServicePrice,{nonNegative:true})),includedServices:servicesSummary(item,true),allServices:servicesSummary(item,false)
     }; return values[key]??'';
   }
   function buildCompanySummaryAoa() {
@@ -5541,34 +5545,49 @@
     const groups=new Map();records.forEach(record=>{if(!groups.has(record.rowIndex))groups.set(record.rowIndex,{rowIndex:record.rowIndex,row:record.row,route:record.route,items:new Map()});groups.get(record.rowIndex).items.set(record.company,record.item);});
     return{method:matrixSelectedMethod(),companies,rows:[...groups.values()].sort((a,b)=>a.route.localeCompare(b.route,'ru')||a.rowIndex-b.rowIndex),selectedBase:m.base?.value||'cheapest'};
   }
+  function allMatrixColumns(useUrgency=usesUrgencyView(),showMethod=true,discountMode=matrixDiscountMode()){
+    return[
+      {key:'route',label:'Маршрут',scope:'base',className:'matrix-route-col'},
+      {key:'weight',label:'Вес',scope:'base',className:'matrix-weight-col'},
+      {key:'seats',label:'Мест',scope:'base',className:'matrix-seats-col'},
+      {key:'dimensions',label:'Габариты',scope:'base',className:'matrix-dimensions-col'},
+      ...(useUrgency?[{key:'urgency',label:'Срочность',scope:'company',className:'matrix-urgency-col'}]:[]),
+      ...(showMethod?[{key:'method',label:'Тип доставки',scope:'company',className:'matrix-method-col'}]:[]),
+      {key:'tariff',label:'Тариф',scope:'company',className:'matrix-tariff-col'},
+      {key:'price',label:'Цена',scope:'company',className:'matrix-price-col'},
+      ...(discountMode?[{key:'discount',label:matrixDiscountLabel(discountMode),scope:'company',className:'matrix-discount-col'}]:[]),
+      {key:'delta',label:'Отклонение, %',scope:'company',className:'matrix-delta-col'},
+      {key:'period',label:'Макс. срок',scope:'company',className:'matrix-period-col'}
+    ];
+  }
+  function matrixColumns(useUrgency=usesUrgencyView(),showMethod=true,discountMode=matrixDiscountMode()){
+    const all=allMatrixColumns(useUrgency,showMethod,discountMode),selected=new Set(Array.isArray(state.settings.matrixVisibleColumns)?state.settings.matrixVisibleColumns:[]);
+    return selected.size?all.filter(column=>selected.has(column.key)):all;
+  }
+  function renderMatrixColumnSelector(useUrgency=usesUrgencyView(),showMethod=true,discountMode=matrixDiscountMode()){
+    const host=document.getElementById('matrixColumnFields'),count=document.getElementById('matrixColumnsCount');if(!host)return;
+    const all=allMatrixColumns(useUrgency,showMethod,discountMode),selected=new Set(Array.isArray(state.settings.matrixVisibleColumns)?state.settings.matrixVisibleColumns:[]),showAll=!selected.size;
+    host.innerHTML=all.map(column=>`<label><input type="checkbox" value="${escapeHtml(column.key)}" ${showAll||selected.has(column.key)?'checked':''}><span>${escapeHtml(column.label)}</span></label>`).join('');
+    if(count)count.textContent=`(${showAll?all.length:all.filter(column=>selected.has(column.key)).length}/${all.length})`;
+  }
   function matrixAoa(model=matrixModel()){
-    const useUrgency=usesUrgencyView(),showMethod=!model.method,discountMode=matrixDiscountMode(),discountLabel=matrixDiscountLabel(discountMode),headers=['Маршрут','Вес, кг','Мест','Габариты, см'];
-    model.companies.forEach(company=>{
-      if(useUrgency)headers.push(`${company} — срочность`);
-      if(showMethod)headers.push(`${company} — тип доставки`);
-      headers.push(`${company} — тариф`,`${company} — цена`);
-      if(discountMode)headers.push(`${company} — ${discountLabel}, %`);
-      headers.push(`${company} — отклонение, %`,`${company} — макс. срок`);
-    });
+    const useUrgency=usesUrgencyView(),showMethod=!model.method,discountMode=matrixDiscountMode(),columns=matrixColumns(useUrgency,showMethod,discountMode),baseColumns=columns.filter(column=>column.scope==='base'),companyColumns=columns.filter(column=>column.scope==='company'),headers=baseColumns.map(column=>column.label);
+    model.companies.forEach(company=>companyColumns.forEach(column=>headers.push(`${company} — ${column.label}`)));
     const rows=model.rows.map(group=>{
-      const prices=model.companies.map(company=>Number(group.items.get(company)?.userPrice)).filter(value=>Number.isFinite(value)&&value>0),baseItem=model.selectedBase==='cheapest'?null:group.items.get(model.selectedBase),basePrice=model.selectedBase==='cheapest'?(prices.length?Math.min(...prices):null):(Number(baseItem?.userPrice)>0?Number(baseItem.userPrice):null),values=[group.route,parsePositive(group.row.weight,.1),Math.round(parsePositive(group.row.seats,1)),`${parsePositive(group.row.length,10)}×${parsePositive(group.row.width,10)}×${parsePositive(group.row.height,10)}`];
+      const prices=model.companies.map(company=>Number(group.items.get(company)?.userPrice)).filter(value=>Number.isFinite(value)&&value>0),baseItem=model.selectedBase==='cheapest'?null:group.items.get(model.selectedBase),basePrice=model.selectedBase==='cheapest'?(prices.length?Math.min(...prices):null):(Number(baseItem?.userPrice)>0?Number(baseItem.userPrice):null),baseValues={route:group.route,weight:parsePositive(group.row.weight,.1),seats:Math.round(parsePositive(group.row.seats,1)),dimensions:`${parsePositive(group.row.length,10)}×${parsePositive(group.row.width,10)}×${parsePositive(group.row.height,10)}`},values=baseColumns.map(column=>baseValues[column.key]??'');
       model.companies.forEach(company=>{
-        const item=group.items.get(company),price=Number(item?.userPrice),pct=item&&price>0&&basePrice?round2((price-basePrice)/basePrice*100):'',discountValue=item?matrixDiscountValue(item,discountMode):null;
-        if(useUrgency)values.push(item?.urgencyLabel||'');
-        if(showMethod)values.push(item?deliveryTypeName(item):'');
-        values.push(item?tariffDisplayName(item):'',item&&price>0?round2(price):'');
-        if(discountMode)values.push(discountValue===null?'':round2(discountValue));
-        values.push(pct,item?periodExportValue(item.maxPeriod):'');
+        const item=group.items.get(company),price=Number(item?.userPrice),pct=item&&price>0&&basePrice?round2((price-basePrice)/basePrice*100):'',discountValue=item?matrixDiscountValue(item,discountMode):null,companyValues={urgency:item?.urgencyLabel||'',method:item?deliveryTypeName(item):'',tariff:item?tariffDisplayName(item):'',price:item&&price>0?round2(price):'',discount:discountValue===null?'':round2(discountValue),delta:pct,period:item?periodExportValue(item.maxPeriod):''};
+        companyColumns.forEach(column=>values.push(companyValues[column.key]??''));
       });
       return values;
     });
     return[headers,...rows];
   }
-  function renderMatrixColGroup(m,model,useUrgency,showMethod,discountMode=matrixDiscountMode()){
+  function renderMatrixColGroup(m,model,columns){
     if(!m.table)return;
     let colgroup=m.table.querySelector('colgroup');if(!colgroup){colgroup=document.createElement('colgroup');m.table.prepend(colgroup);}
-    const cols=['matrix-route-col','matrix-weight-col','matrix-seats-col','matrix-dimensions-col'];
-    model.companies.forEach(()=>{if(useUrgency)cols.push('matrix-urgency-col');if(showMethod)cols.push('matrix-method-col');cols.push('matrix-tariff-col','matrix-price-col');if(discountMode)cols.push('matrix-discount-col');cols.push('matrix-delta-col','matrix-period-col');});
+    const cols=columns.filter(column=>column.scope==='base').map(column=>column.className),companyColumns=columns.filter(column=>column.scope==='company');
+    model.companies.forEach(()=>companyColumns.forEach(column=>cols.push(column.className)));
     colgroup.innerHTML=cols.map(name=>`<col class="${name}">`).join('');
   }
   function renderMatrixPane(markUpdated=false){
@@ -5576,7 +5595,8 @@
     if(!m.body||!m.head)return;
     const selectedMethod=matrixSelectedMethod();
     if(selectedMethod)syncAnalyticsMethod(selectedMethod);
-    const model=matrixModel(),spreads=[],wins=new Map(),useUrgency=usesUrgencyView(),showMethod=!model.method,discountMode=matrixDiscountMode(),discountLabel=matrixDiscountLabel(discountMode),discountTip=matrixDiscountTip(discountMode);
+    const model=matrixModel(),spreads=[],wins=new Map(),useUrgency=usesUrgencyView(),showMethod=!model.method,discountMode=matrixDiscountMode(),discountTip=matrixDiscountTip(discountMode),columns=matrixColumns(useUrgency,showMethod,discountMode),baseColumns=columns.filter(column=>column.scope==='base'),companyColumns=columns.filter(column=>column.scope==='company');
+    renderMatrixColumnSelector(useUrgency,showMethod,discountMode);
     model.rows.forEach(group=>{
       const entries=model.companies.map(company=>({company,price:Number(group.items.get(company)?.userPrice)})).filter(entry=>Number.isFinite(entry.price)&&entry.price>0);
       if(!entries.length)return;
@@ -5586,19 +5606,24 @@
     });
     const leader=[...wins.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'ru'))[0];
     if(m.summary)m.summary.innerHTML=`<div class="metric"><span>Маршрутов</span><b>${model.rows.length}</b></div><div class="metric"><span>ТК</span><b>${model.companies.length}</b></div><div class="metric"><span>Типы доставки</span><b>${model.method?escapeHtml(model.method):'Все'}</b></div><div class="metric"><span>Средний разброс цен</span><b>${spreads.length?`${formatValue(round2(averageOrNull(spreads)))}%`:'—'}</b></div><div class="metric"><span>Чаще дешевле</span><b>${leader?`${escapeHtml(leader[0])} · ${leader[1]}`:'—'}</b></div>`;
-    const baseLabel=model.selectedBase==='cheapest'?'к минимуму':`к ${model.selectedBase}`,perCompany=(useUrgency?1:0)+(showMethod?1:0)+4+(discountMode?1:0),discountHeader=discountMode?`<th data-tip="${escapeHtml(discountTip)}">${escapeHtml(discountLabel)}, %</th>`:'';
-    renderMatrixColGroup(m,model,useUrgency,showMethod,discountMode);
-    m.head.innerHTML=`<tr><th rowspan="2">Маршрут</th><th rowspan="2">Вес</th><th rowspan="2">Мест</th><th rowspan="2">Габариты</th>${model.companies.map(company=>`<th colspan="${perCompany}">${escapeHtml(company)}</th>`).join('')}</tr><tr>${model.companies.map(()=>`${useUrgency?'<th>Срочность</th>':''}${showMethod?'<th>Тип</th>':''}<th>Тариф</th><th>Цена</th>${discountHeader}<th data-tip="(Цена ТК − базовая цена) / базовая цена × 100">Δ ${escapeHtml(baseLabel)}, %</th><th data-tip="Только максимальный срок; 0 отображается как «По запросу»">Макс. срок</th>`).join('')}</tr>`;
-    if(!model.rows.length){m.body.innerHTML=`<tr><td colspan="${4+model.companies.length*perCompany}" class="empty-tariffs">Нет данных для матрицы по текущей общей выборке.</td></tr>`;return;}
+    const baseLabel=model.selectedBase==='cheapest'?'к минимуму':`к ${model.selectedBase}`,perCompany=companyColumns.length,companyHead=column=>{
+      if(column.key==='discount')return`<th data-tip="${escapeHtml(discountTip)}">${escapeHtml(column.label)}, %</th>`;
+      if(column.key==='delta')return`<th data-tip="(Цена ТК − базовая цена) / базовая цена × 100">Δ ${escapeHtml(baseLabel)}, %</th>`;
+      if(column.key==='period')return'<th data-tip="Только максимальный срок; 0 отображается как «По запросу»">Макс. срок</th>';
+      return`<th>${escapeHtml(column.label)}</th>`;
+    };
+    renderMatrixColGroup(m,model,columns);
+    m.head.innerHTML=`<tr>${baseColumns.map(column=>`<th rowspan="2">${escapeHtml(column.label)}</th>`).join('')}${perCompany?model.companies.map(company=>`<th colspan="${perCompany}">${escapeHtml(company)}</th>`).join(''):''}</tr>${perCompany?`<tr>${model.companies.map(()=>companyColumns.map(companyHead).join('')).join('')}</tr>`:''}`;
+    if(!model.rows.length){m.body.innerHTML=`<tr><td colspan="${baseColumns.length+model.companies.length*perCompany}" class="empty-tariffs">Нет данных для матрицы по текущей общей выборке.</td></tr>`;return;}
     m.body.innerHTML=model.rows.map(group=>{
-      const prices=model.companies.map(company=>Number(group.items.get(company)?.userPrice)).filter(value=>Number.isFinite(value)&&value>0),baseItem=model.selectedBase==='cheapest'?null:group.items.get(model.selectedBase),basePrice=model.selectedBase==='cheapest'?(prices.length?Math.min(...prices):null):(Number(baseItem?.userPrice)>0?Number(baseItem.userPrice):null),emptyCells=`${useUrgency?'<td>—</td>':''}${showMethod?'<td>—</td>':''}<td>—</td><td>—</td>${discountMode?'<td>—</td>':''}<td>—</td><td>—</td>`;
+      const prices=model.companies.map(company=>Number(group.items.get(company)?.userPrice)).filter(value=>Number.isFinite(value)&&value>0),baseItem=model.selectedBase==='cheapest'?null:group.items.get(model.selectedBase),basePrice=model.selectedBase==='cheapest'?(prices.length?Math.min(...prices):null):(Number(baseItem?.userPrice)>0?Number(baseItem.userPrice):null),emptyCells=companyColumns.map(()=>'<td>—</td>').join(''),baseCells={route:`<td title="${escapeHtml(group.route)}">${escapeHtml(group.route)}</td>`,weight:`<td>${escapeHtml(formatValue(parsePositive(group.row.weight,.1)))}</td>`,seats:`<td>${Math.round(parsePositive(group.row.seats,1))}</td>`,dimensions:`<td>${escapeHtml(`${formatValue(parsePositive(group.row.length,10))}×${formatValue(parsePositive(group.row.width,10))}×${formatValue(parsePositive(group.row.height,10))}`)}</td>`};
       const cells=model.companies.map(company=>{
         const item=group.items.get(company),price=Number(item?.userPrice);
         if(!item||!(price>0))return emptyCells;
-        const pct=basePrice?(price-basePrice)/basePrice*100:null,cls=pct===null?'':pct<=0?'status-good':pct<=5?'status-warn':'status-bad',discountValue=matrixDiscountValue(item,discountMode),discountCell=discountMode?`<td class="matrix-discount-cell" title="${escapeHtml(discountTip)}">${escapeHtml(percentOrDash(discountValue))}</td>`:'';
-        return`${useUrgency?`<td><span class="urgency-badge">${escapeHtml(tariffUrgencyLabel(item))}</span></td>`:''}${showMethod?`<td><span class="matrix-method-tag">${escapeHtml(deliveryTypeName(item))}</span></td>`:''}<td>${escapeHtml(tariffDisplayName(item))}</td><td><b>${escapeHtml(formatValue(price))} ₽</b></td>${discountCell}<td class="${cls}">${pct===null?'—':`${escapeHtml(formatValue(round2(pct)))}%`}</td><td>${escapeHtml(formatTerm(item))}</td>`;
+        const pct=basePrice?(price-basePrice)/basePrice*100:null,cls=pct===null?'':pct<=0?'status-good':pct<=5?'status-warn':'status-bad',discountValue=matrixDiscountValue(item,discountMode),companyCells={urgency:`<td><span class="urgency-badge">${escapeHtml(tariffUrgencyLabel(item))}</span></td>`,method:`<td><span class="matrix-method-tag">${escapeHtml(deliveryTypeName(item))}</span></td>`,tariff:`<td>${escapeHtml(tariffDisplayName(item))}</td>`,price:`<td><b>${escapeHtml(formatValue(price))} ₽</b></td>`,discount:`<td class="matrix-discount-cell" title="${escapeHtml(discountTip)}">${escapeHtml(percentOrDash(discountValue))}</td>`,delta:`<td class="${cls}">${pct===null?'—':`${escapeHtml(formatValue(round2(pct)))}%`}</td>`,period:`<td>${escapeHtml(formatTerm(item))}</td>`};
+        return companyColumns.map(column=>companyCells[column.key]||'<td>—</td>').join('');
       }).join('');
-      return`<tr><td title="${escapeHtml(group.route)}">${escapeHtml(group.route)}</td><td>${escapeHtml(formatValue(parsePositive(group.row.weight,.1)))}</td><td>${Math.round(parsePositive(group.row.seats,1))}</td><td>${escapeHtml(`${formatValue(parsePositive(group.row.length,10))}×${formatValue(parsePositive(group.row.width,10))}×${formatValue(parsePositive(group.row.height,10))}`)}</td>${cells}</tr>`;
+      return`<tr>${baseColumns.map(column=>baseCells[column.key]||'<td>—</td>').join('')}${cells}</tr>`;
     }).join('');
     if(markUpdated&&m.updated)m.updated.textContent=`Обновлено ${analyticsTimestamp()}`;
   }
@@ -5657,7 +5682,7 @@
       requestNo:index+1,senderQuery:row.senderQuery,senderKd:row.senderResolved?.placeText||row.senderResolved?.kdText||'',recipientQuery:row.recipientQuery,recipientKd:row.recipientResolved?.placeText||row.recipientResolved?.kdText||'',
       weight:parsePositive(row.weight,.1),seats:Math.round(parsePositive(row.seats,1)),length:parsePositive(row.length,10),width:parsePositive(row.width,10),height:parsePositive(row.height,10),
       company:item?.deliveryCompanyLabel||'',urgency:item?.urgencyLabel||'',tariffCaption:item?tariffDisplayName(item):'',method:item?.deliveryTypeLabel||item?.deliveryMethodLabel||'',minPeriod:periodExportValue(item?.minPeriod),maxPeriod:periodExportValue(item?.maxPeriod),
-      userPrice:safeNumber(item?.userPrice),userPriceWithoutDiscount:safeNumber(item?.userPriceWithoutDiscount),inputPrice:safeNumber(item?.inputPrice),inputPricePercent:safeNumber(item?.inputPricePercent),retailPrice:projectHasRetailPricing()?safeNumber(item?.retailPrice):'',servicesPrice:safeNumber(item?.servicesPrice),activeDiscount:safeNumber(item?.activeDiscount),discountPercent:safeNumber(item?.discountPercent),calculatedDiscount:safeNumber(displayDiscountPct(item)),minPrice:safeNumber(item?.minPrice),minPricePercent:safeNumber(item?.minPricePercent),returnAllowed:item?.returnServiceAllowed?'Да':'Нет',returnPrice:safeNumber(item?.returnServicePrice),includedServices:servicesSummary(item,true),allServices:servicesSummary(item,false)
+      userPrice:safeNumber(item?.userPrice),userPriceWithoutDiscount:safeNumber(item?.userPriceWithoutDiscount),inputPrice:safeNumber(ceilingMoney(item?.inputPrice,{nonNegative:true})),inputPricePercent:safeNumber(item?.inputPricePercent),retailPrice:projectHasRetailPricing()?safeNumber(item?.retailPrice):'',servicesPrice:safeNumber(ceilingMoney(item?.servicesPrice,{nonNegative:true})),activeDiscount:safeNumber(item?.activeDiscount),discountPercent:safeNumber(item?.discountPercent),calculatedDiscount:safeNumber(displayDiscountPct(item)),minPrice:safeNumber(item?.minPrice),minPricePercent:safeNumber(item?.minPricePercent),returnAllowed:item?.returnServiceAllowed?'Да':'Нет',returnPrice:safeNumber(ceilingMoney(item?.returnServicePrice,{nonNegative:true})),includedServices:servicesSummary(item,true),allServices:servicesSummary(item,false)
     };
     return values[key]??'';
   }
@@ -5821,7 +5846,7 @@
   function comparisonMetricsChanged(){const selected=selectedComparisonMetrics(),fallback=comparisonPresetKeys('sale');state.settings.comparisonMetrics=selected.length?selected:fallback;if(els.comparisonMetricCount)els.comparisonMetricCount.textContent=`(${state.settings.comparisonMetrics.length})`;els.comparisonPresetSelect.value=Object.entries(COMPARISON_PRESETS).find(([,keys])=>comparisonPresetKeysFromList(keys).sort().join('|')===[...state.settings.comparisonMetrics].sort().join('|'))?.[0]||'custom';persistSettings();markAnalyticsDirty('comparison');}
   function comparisonPresetKeysFromList(keys){const allowed=new Set(comparisonMetricOptions().map(metric=>metric.key));return(keys||[]).filter(key=>allowed.has(key));}
   function enrichSalesRecord(record,params){const model=tariffPriceModel(record.item),price=model.userPrice,lkPercentFloor=lkFloorCandidates(model).find(item=>item.label.includes('%'))?.value??null,marketGap=price!==null&&record.marketMin&&record.marketMin>0?(price-record.marketMin)/record.marketMin*100:null,{floorPrice,floorSource}=priceFloorModel(model,params),marketTarget=record.marketMin&&record.marketMin>0?record.marketMin*(1-params.beat/100):null,currentBelowFloor=price!==null&&floorPrice!==null&&price<floorPrice,safeDiscount=price!==null&&floorPrice!==null&&!currentBelowFloor?Math.max(0,(price-floorPrice)/price*100):currentBelowFloor?0:null;let recommendedPrice=null,recommendedDiscount=null,recommendationStatus='';if(price===null)recommendationStatus='Нет цены клиента';else if(floorPrice===null)recommendationStatus='Не хватает данных для ограничения цены';else if(currentBelowFloor){recommendedPrice=floorPrice;recommendedDiscount=0;recommendationStatus='Поднять цену до допустимого минимума';}else if(marketTarget===null){recommendedPrice=price;recommendedDiscount=0;recommendationStatus='Нет другой ТК для сравнения';}else if(price<=marketTarget){recommendedPrice=price;recommendedDiscount=0;recommendationStatus='Цена уже конкурентнее альтернативы';}else{recommendedPrice=Math.max(floorPrice,marketTarget);recommendedDiscount=Math.max(0,(price-recommendedPrice)/price*100);recommendationStatus=recommendedPrice>marketTarget?'Скидку ограничивает допустимый минимум':'Можно снизить цену и стать конкурентнее';}const enriched={...record,price,priceWithoutDiscount:model.userPriceWithoutDiscount,input:model.inputPrice,inputPercent:model.inputPricePercent,minAllowedPrice:model.minPrice,minAllowedPercent:model.minPricePercent,minPercentFloor:lkPercentFloor,retail:projectHasRetailPricing()?model.retailPrice:null,activeDiscount:model.activeDiscountPct,margin:model.marginRub,marginPct:model.marginPct,clientDiscount:model.clientDiscountPct,displayDiscount:displayDiscountPct(record.item),retailDiscount:projectHasRetailPricing()?model.retailDiscountPct:null,marketGap,marketTarget,floorPrice,floorSource,currentBelowFloor,safeDiscount,recommendedPrice,recommendedDiscount,recommendationStatus};const priority=salesPriority(enriched);return{...enriched,priority:priority.label,priorityDetails:priority.details,priorityTone:priority.tone,priorityRank:priority.rank,potentialSavingsRub:salesPotentialSavings(enriched)};}
-  function comparisonStats(){const params=salesParams('custom','comparison'),filters=comparisonFilters(),records=bestRouteCompanyRecords(filters).map(record=>enrichSalesRecord(record,params)),scopeRows=new Set(filteredCompanyRecords().filter(record=>deliveryTypeName(record.item)===filters.method).map(record=>record.rowIndex)),groups=new Map();records.forEach(record=>{if(!groups.has(record.company))groups.set(record.company,[]);groups.get(record.company).push(record);});return[...groups.entries()].map(([company,items])=>{const values=key=>items.map(item=>item[key]).filter(value=>Number.isFinite(value)),prices=values('price'),periods=items.map(item=>validPeriod(item.item.maxPeriod)).filter(value=>value!==null),services=items.map(item=>optionalNumeric(item.item.servicesPrice,{nonNegative:true})).filter(value=>value!==null),wins=items.filter(item=>item.routeMarketMin&&item.price!==null&&Math.abs(item.price-item.routeMarketMin)<.01).length,opportunities=items.filter(item=>Number(item.potentialSavingsRub)>0),needsIncrease=items.filter(item=>item.currentBelowFloor),withoutAlternative=items.filter(item=>item.marketMin===null);return{company,minPrice:prices.length?Math.min(...prices):null,avgPrice:averageOrNull(prices),maxPrice:prices.length?Math.max(...prices):null,avgPriceWithoutDiscount:averageOrNull(values('priceWithoutDiscount')),avgInput:averageOrNull(values('input')),avgMinAllowedPrice:averageOrNull(values('minAllowedPrice')),avgRetail:projectHasRetailPricing()?averageOrNull(values('retail')):null,bestPeriod:periods.length?Math.min(...periods):null,avgPeriod:averageOrNull(periods),avgMarginRub:averageOrNull(values('margin')),avgMarginPct:averageOrNull(values('marginPct')),avgRetailDiscount:projectHasRetailPricing()?averageOrNull(values('retailDiscount')):null,avgClientDiscount:averageOrNull(values('clientDiscount')),avgActiveDiscount:averageOrNull(values('activeDiscount')),marketGapPct:averageOrNull(values('marketGap')),safeDiscountPct:averageOrNull(values('safeDiscount')),recommendedPrice:averageOrNull(values('recommendedPrice')),recommendedDiscountPct:averageOrNull(values('recommendedDiscount')),avgServicesPrice:averageOrNull(services),winRatePct:items.length?wins/items.length*100:null,offersCount:items.length,coveragePct:scopeRows.size?new Set(items.map(item=>item.rowIndex)).size/scopeRows.size*100:null,discountOpportunityPct:items.length?opportunities.length/items.length*100:null,avgPotentialSavingsRub:averageOrNull(opportunities.map(item=>item.potentialSavingsRub)),needsPriceIncreasePct:items.length?needsIncrease.length/items.length*100:null,noAlternativePct:items.length?withoutAlternative.length/items.length*100:null,records:items};});}
+  function comparisonStats(){const params=salesParams('custom','comparison'),filters=comparisonFilters(),records=bestRouteCompanyRecords(filters).map(record=>enrichSalesRecord(record,params)),scopeRows=new Set(filteredCompanyRecords().filter(record=>deliveryTypeName(record.item)===filters.method).map(record=>record.rowIndex)),groups=new Map();records.forEach(record=>{if(!groups.has(record.company))groups.set(record.company,[]);groups.get(record.company).push(record);});return[...groups.entries()].map(([company,items])=>{const values=key=>items.map(item=>item[key]).filter(value=>Number.isFinite(value)),prices=values('price'),periods=items.map(item=>validPeriod(item.item.maxPeriod)).filter(value=>value!==null),services=items.map(item=>ceilingMoney(item.item.servicesPrice,{nonNegative:true})).filter(value=>value!==null),wins=items.filter(item=>item.routeMarketMin&&item.price!==null&&Math.abs(item.price-item.routeMarketMin)<.01).length,opportunities=items.filter(item=>Number(item.potentialSavingsRub)>0),needsIncrease=items.filter(item=>item.currentBelowFloor),withoutAlternative=items.filter(item=>item.marketMin===null);return{company,minPrice:prices.length?Math.min(...prices):null,avgPrice:averageOrNull(prices),maxPrice:prices.length?Math.max(...prices):null,avgPriceWithoutDiscount:averageOrNull(values('priceWithoutDiscount')),avgInput:averageOrNull(values('input')),avgMinAllowedPrice:averageOrNull(values('minAllowedPrice')),avgRetail:projectHasRetailPricing()?averageOrNull(values('retail')):null,bestPeriod:periods.length?Math.min(...periods):null,avgPeriod:averageOrNull(periods),avgMarginRub:averageOrNull(values('margin')),avgMarginPct:averageOrNull(values('marginPct')),avgRetailDiscount:projectHasRetailPricing()?averageOrNull(values('retailDiscount')):null,avgClientDiscount:averageOrNull(values('clientDiscount')),avgActiveDiscount:averageOrNull(values('activeDiscount')),marketGapPct:averageOrNull(values('marketGap')),safeDiscountPct:averageOrNull(values('safeDiscount')),recommendedPrice:averageOrNull(values('recommendedPrice')),recommendedDiscountPct:averageOrNull(values('recommendedDiscount')),avgServicesPrice:averageOrNull(services),winRatePct:items.length?wins/items.length*100:null,offersCount:items.length,coveragePct:scopeRows.size?new Set(items.map(item=>item.rowIndex)).size/scopeRows.size*100:null,discountOpportunityPct:items.length?opportunities.length/items.length*100:null,avgPotentialSavingsRub:averageOrNull(opportunities.map(item=>item.potentialSavingsRub)),needsPriceIncreasePct:items.length?needsIncrease.length/items.length*100:null,noAlternativePct:items.length?withoutAlternative.length/items.length*100:null,records:items};});}
   function allManagerSalesColumns(rows=buildManagerRows()){const any=key=>rows.some(record=>record[key]!==null&&record[key]!==undefined&&Number.isFinite(Number(record[key])));return[{key:'priority',label:'Действие',tip:'Короткая подсказка для менеджера: дать скидку, поднять цену, оставить как есть или проверить вручную.'},{key:'route',label:'Маршрут'},{key:'cargo',label:'Груз'},{key:'company',label:'ТК'},...(usesUrgencyView()?[{key:'urgency',label:'Срочность'}]:[]),{key:'tariff',label:'Тариф'},{key:'method',label:'Тип доставки'},{key:'period',label:'Макс. срок',tip:'Используется максимальный срок. Ноль отображается как «По запросу».'},{key:'price',label:'Текущая цена клиенту',tip:'Фактическая цена выбранного тарифа для клиента.'},...(any('priceWithoutDiscount')?[{key:'priceWithoutDiscount',label:projectHasRetailPricing()?'Цена без персональной скидки':'Цена клиента без скидки',tip:'Цена до скидки клиента.'}]:[]),...(!projectHasRetailPricing()&&any('displayDiscount')?[{key:'displayDiscount',label:`${discountMetricLabel()}, %`,tip:discountMetricTip()}]:[]),...(projectHasRetailPricing()&&any('clientDiscount')?[{key:'clientDiscount',label:'Персональная скидка, %',tip:'Дополнительная скидка клиента. 0% означает, что персональной скидки нет.'}]:[]),...(any('activeDiscount')?[{key:'activeDiscount',label:'Активная скидка ЛК, %',tip:'Скидка, переданная личным кабинетом.'}]:[]),...(any('input')?[{key:'input',label:'Вход',tip:'Себестоимость тарифа.'},{key:'marginPct',label:'Маржа, %',tip:'Доля разницы между ценой клиенту и входом в цене продажи.'}]:[]),...(any('minAllowedPrice')?[{key:'minAllowedPrice',label:'Минимум ЛК, ₽',tip:'Минимальная допустимая сумма из ответа личного кабинета.'}]:[]),...(any('minPercentFloor')?[{key:'minPercentFloor',label:'Мин. по проценту ЛК',tip:'Запасной минимум, когда сумма Минимум ЛК пустая: вход × minPricePercent / 100.'}]:[]),...(projectHasRetailPricing()&&any('retail')?[{key:'retail',label:'Розница',tip:'Розничная цена, когда она доступна.'},{key:'retailDiscount',label:'Скидка от розницы, %',tip:'Разница между розницей и текущей ценой клиенту.'}]:[]),{key:'marketMin',label:'Лучшая цена другой ТК',tip:'Минимальная цена другой выбранной ТК на том же маршруте и типе доставки.'},{key:'marketGap',label:'Разница с альтернативой, %',tip:'Отрицательное значение — текущая ТК дешевле; положительное — дороже лучшей другой ТК.'},{key:'floorPrice',label:'Итоговая нижняя граница',tip:'Ниже этой цены нельзя опускаться по выбранному правилу.'},{key:'safeDiscount',label:'Макс. безопасная скидка, %',tip:'Сколько можно дополнительно снизить от текущей цены до допустимого минимума.'},{key:'potentialSavingsRub',label:'Резерв скидки, ₽',tip:'Разница между текущей ценой и рекомендованной ценой.'},{key:'recommendedPrice',label:'Цена для предложения',tip:'Цена, которую можно предложить клиенту.'},{key:'recommendedDiscount',label:'Доп. скидка до рекомендации, %',tip:'Дополнительное снижение от текущей цены до цены для предложения.'},{key:'status',label:'Вывод для сотрудника'}];}
   function managerSalesColumns(rows=buildManagerRows()){
     const all=allManagerSalesColumns(rows),selected=new Set(Array.isArray(state.settings.managerVisibleColumns)?state.settings.managerVisibleColumns:[]);
@@ -6179,8 +6204,8 @@
       if (Array.isArray(next.exclusions)) p.exclusions = uniqueCompanyNames(next.exclusions);
       if (Array.isArray(next.bestExclusions)) p.bestExclusions = uniqueCompanyNames(next.bestExclusions);
       if (Object.prototype.hasOwnProperty.call(next, 'concurrency')) state.settings.concurrency = Math.min(6, Math.max(1, Number(next.concurrency) || 3));
-      if (Object.prototype.hasOwnProperty.call(next, 'debounceMs')) state.settings.debounceMs = Math.min(1200, Math.max(400, Number(next.debounceMs) || 650));
-      if (Object.prototype.hasOwnProperty.call(next, 'calcTimeoutMs')) state.settings.calcTimeoutMs = Math.min(180000, Math.max(30000, Number(next.calcTimeoutMs) || 90000));
+      state.settings.debounceMs = 900;
+      if (Object.prototype.hasOwnProperty.call(next, 'calcTimeoutMs')) state.settings.calcTimeoutMs = Math.min(180000, Math.max(30000, Number(next.calcTimeoutMs) || 120000));
       if (Object.prototype.hasOwnProperty.call(next, 'calcRetries')) state.settings.calcRetries = Math.min(3, Math.max(0, Number(next.calcRetries) || 0));
       if (Object.prototype.hasOwnProperty.call(next, 'density')) state.settings.density = ['micro','compact','medium','spacious'].includes(next.density) ? next.density : 'medium';
       if (Object.prototype.hasOwnProperty.call(next, 'showServiceInfo')) state.settings.showServiceInfo = Boolean(next.showServiceInfo);
@@ -6236,6 +6261,14 @@
       state.settings.managerVisibleColumns=selected;
       persistSettings();
       renderManagerRecommendations();
+    });
+    document.getElementById('matrixColumnFields')?.addEventListener('change',event=>{
+      if(!event.target.matches('input[type="checkbox"]'))return;
+      const selected=[...document.querySelectorAll('#matrixColumnFields input:checked')].map(input=>input.value);
+      if(!selected.length){event.target.checked=true;toast('Оставьте хотя бы одну колонку','error');return;}
+      state.settings.matrixVisibleColumns=selected;
+      persistSettings();
+      renderMatrixPane();
     });
   });
   document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>window.parent?.postMessage({type:'ops-toolkit-ready',tool:'calculator'},location.origin),0));
