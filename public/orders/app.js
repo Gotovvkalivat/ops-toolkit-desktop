@@ -3068,7 +3068,8 @@
     const html = rows.length > 10
       ? `<label class="pager-page-size">Заказов <select data-page-size>${pageSizeOptions}</select></label><button class="button secondary mini pager-arrow" type="button" data-page="prev" ${state.page <= 0 ? 'disabled' : ''} aria-label="Предыдущая страница">‹</button>${numbers ? `<span class="pager-numbers">${numbers}</span>` : ''}<span class="pager-info">Страница ${state.page + 1} / ${pages}</span><button class="button secondary mini pager-arrow" type="button" data-page="next" ${state.page >= pages - 1 ? 'disabled' : ''} aria-label="Следующая страница">›</button>`
       : '';
-    [els.pageControlsTop, els.pageControlsBottom].filter(Boolean).forEach(node => { node.innerHTML = html; });
+    if (els.pageControlsTop) els.pageControlsTop.innerHTML = '';
+    if (els.pageControlsBottom) els.pageControlsBottom.innerHTML = html;
   }
   function labelTitle(title, required = false) {
     return `<span class="label-title${required ? ' required' : ''}">${escapeHtml(title)}</span>`;
@@ -5789,7 +5790,7 @@
         }
       }
     });
-    [els.pageControlsTop, els.pageControlsBottom].filter(Boolean).forEach(node => node.addEventListener('click', event => {
+    [els.pageControlsBottom].filter(Boolean).forEach(node => node.addEventListener('click', event => {
       const pageNumber = event.target.closest('[data-page-number]');
       if (pageNumber) {
         const pages = pagesForRows(filteredRows());
@@ -5808,7 +5809,7 @@
       saveStateSoon(600);
       renderRows();
     }));
-    [els.pageControlsTop, els.pageControlsBottom].filter(Boolean).forEach(node => node.addEventListener('change', event => {
+    [els.pageControlsBottom].filter(Boolean).forEach(node => node.addEventListener('change', event => {
       const select = event.target.closest('[data-page-size]');
       if (!select) return;
       const value = Number(select.value);
@@ -5922,8 +5923,8 @@
     openHelp() { openHelpModal(); },
     setTheme(theme) {
       state.settings.theme = theme;
-      saveState();
       applyTheme();
+      try { saveState(); } catch { /* applying the theme must not depend on draft storage */ }
     },
     getSettings() {
       return {

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-set "VERSION=0.5.0"
+set "VERSION=0.5.1"
 set "OUTPUT=%CD%\release\OPS-Toolkit-Localhost-Server"
 set "ARCHIVE=%CD%\release\OPS-Toolkit-Localhost-Server-v%VERSION%-win-x64.zip"
 
@@ -26,4 +26,3 @@ exit /b 0
 echo.
 echo Build failed.
 exit /b 1
-

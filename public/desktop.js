@@ -49,7 +49,9 @@ const ICONS = {
   clipboard: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M8 9h8M8 13h8M8 17h5"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>',
   refresh: '<path d="M20 7h-5V2M4 17h5v5"/><path d="M5.6 8A8 8 0 0 1 18 5l2 2M18.4 16A8 8 0 0 1 6 19l-2-2"/>',
-  more: '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>'
+  more: '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'
 };
 const LOCAL_ENDPOINTS = {
   auth: '/api/auth/login', deliveryCompanies: '/api/reference/delivery-companies', searchUser: '/api/clients/search',
@@ -185,12 +187,12 @@ function renderWorkflow() {
   const issues = Number(summary.issues || 0);
   const created = Number(summary.created || 0);
   const stages = {
-    client: { done: Boolean(summary.clientReady), value: summary.clientReady ? 'выбран' : 'не выбран' },
-    setup: { done: Boolean(summary.setupReady), value: summary.setupReady ? 'заданы' : 'не заданы' },
-    orders: { done: total > 0, value: String(total) },
-    calculation: { done: total > 0 && resolved >= total && calculated >= total, value: `${calculated}/${total}` },
-    check: { done: total > 0 && issues === 0 && calculated >= total, value: issues ? `${issues} ошибок` : total ? 'готово' : '—', error: issues > 0 },
-    create: { done: total > 0 && created >= total, value: String(created) }
+    client: { done: Boolean(summary.clientReady) },
+    setup: { done: Boolean(summary.setupReady) },
+    orders: { done: total > 0 },
+    calculation: { done: total > 0 && resolved >= total && calculated >= total },
+    check: { done: total > 0 && issues === 0 && calculated >= total, error: issues > 0 },
+    create: { done: total > 0 && created >= total }
   };
   const activeKey = !stages.client.done ? 'client'
     : !stages.setup.done ? 'setup'
@@ -203,11 +205,36 @@ function renderWorkflow() {
     item.classList.toggle('done', Boolean(stage?.done));
     item.classList.toggle('active', item.dataset.workflowStage === activeKey);
     item.classList.toggle('error', Boolean(stage?.error));
+    item.setAttribute('aria-current', item.dataset.workflowStage === activeKey ? 'step' : 'false');
+    const marker = item.querySelector('i');
+    if (marker) {
+      marker.dataset.step ||= marker.textContent;
+      marker.textContent = stage?.done ? '✓' : marker.dataset.step;
+    }
     const value = item.querySelector('b');
-    if (value) value.textContent = stage?.value || '—';
+    if (value) value.textContent = stage?.error ? 'Проверить' : stage?.done ? 'Готово' : item.dataset.workflowStage === activeKey ? 'Сейчас' : 'Далее';
   });
-  const title = summary.nextTitle || (!summary.clientReady ? 'Выберите клиента' : !total ? 'Добавьте заказы' : issues ? 'Исправьте строки с ошибками' : 'Заказы готовы к созданию');
-  const hint = summary.nextHint || (!summary.clientReady ? 'Введите ИНН в шапке приложения.' : 'Следуйте этапам слева направо.');
+  let title = 'Выберите клиента';
+  let hint = 'Введите ИНН в шапке приложения.';
+  if (summary.clientReady && !summary.setupReady) {
+    title = 'Укажите дату и правило тарифа';
+    hint = 'Общие параметры применятся к загруженным заказам.';
+  } else if (summary.setupReady && !total) {
+    title = 'Добавьте заказы';
+    hint = 'Загрузите файл или добавьте заказ вручную.';
+  } else if (total && (resolved < total || calculated < total)) {
+    title = 'Распознайте адреса и рассчитайте тарифы';
+    hint = `Расчёт готов для ${calculated} из ${total} строк.`;
+  } else if (issues) {
+    title = 'Исправьте данные перед созданием';
+    hint = 'Откройте проверку: проблемные поля будут подсвечены.';
+  } else if (total && created < total) {
+    title = 'Проверьте выбор и создайте заказы';
+    hint = 'Сумма и количество выбранных заказов показаны в шапке.';
+  } else if (total) {
+    title = 'Работа завершена';
+    hint = 'ID находятся в панели созданных заказов.';
+  }
   els.workflowMessage.innerHTML = `<b>${escapeHtml(title)}</b><span>${escapeHtml(hint)}</span>`;
 }
 function renderClient() {
@@ -390,7 +417,24 @@ function renderBusyLocks() {
 function openSettings() { renderSettingsForm(); els.settingsDrawer.hidden = false; document.body.classList.add('settings-open'); requestAnimationFrame(() => els.emailInput.focus()); void moduleApi('calculator')?.refreshCompanies?.(false).then(() => { if (!els.settingsDrawer.hidden && state.tool === 'calculator') renderModuleSettings(); }); }
 function closeSettings() { els.settingsDrawer.hidden = true; document.body.classList.remove('settings-open'); }
 function showHelp() { const api = moduleApi(); if (api?.openHelp) api.openHelp(); else toast('Раздел ещё загружается','error'); }
-function toggleTheme() { state.theme = state.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = state.theme; saveShellState(); for (const tool of Object.keys(TOOLS)) moduleApi(tool)?.setTheme?.(state.theme); }
+function applyShellTheme(syncModules = true) {
+  document.documentElement.dataset.theme = state.theme;
+  document.documentElement.style.colorScheme = state.theme;
+  const nextTheme = state.theme === 'dark' ? 'светлую' : 'тёмную';
+  els.themeButton.innerHTML = svg(state.theme === 'dark' ? 'sun' : 'moon');
+  els.themeButton.dataset.tooltip = `Включить ${nextTheme} тему`;
+  els.themeButton.setAttribute('aria-label', `Включить ${nextTheme} тему`);
+  if (syncModules) {
+    for (const tool of Object.keys(TOOLS)) {
+      try { moduleApi(tool)?.setTheme?.(state.theme); } catch { /* theme remains usable even if storage is full */ }
+    }
+  }
+}
+function toggleTheme() {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  applyShellTheme(true);
+  try { saveShellState(); } catch { /* visual theme must not depend on storage availability */ }
+}
 function toast(title,type='success',detail='') { const element=document.createElement('div'); element.className=`toast ${type}`; element.innerHTML=`<b>${escapeHtml(title)}</b>${detail?`<span>${escapeHtml(detail)}</span>`:''}`; els.toastRegion.append(element); setTimeout(()=>element.remove(),5200); }
 function escapeHtml(value) { return String(value || '').replace(/[&<>'"]/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'})[character]); }
 
@@ -400,8 +444,10 @@ function configureEmbeddedFrame(frame, tool) {
     doc.querySelector('style[data-desktop-shell]')?.remove(); const style = doc.createElement('style'); style.dataset.desktopShell = 'true';
     style.textContent = tool === 'calculator'
       ? `.topbar,.primary-toolbar{display:none!important}.shell{padding-top:0!important;min-height:100vh!important}.settings-panel{display:none!important}`
-      : `html,body{height:100%!important;overflow:hidden!important}.app-header,.workflow-steps{display:none!important}.app-shell{height:100%!important;min-height:0!important;padding-top:0!important;align-items:stretch!important}.workspace-top{top:0!important}.side-panel,.workspace,.sidebar-resizer{height:100%!important;min-height:0!important}.side-panel{position:relative!important;top:0!important;max-height:none!important;overflow:auto!important}.side-panel>.panel-section:first-child,.settings-modal-panel{display:none!important}.action-modal{z-index:460!important}.confirm-modal{z-index:520!important}`;
-    doc.head.append(style); frame.contentWindow?.postMessage({type:'ops-toolkit-shell',projectId:state.project,theme:state.theme},location.origin);
+      : `html,body{height:100%!important;overflow:hidden!important}.app-header,.workflow-steps,#pageControlsTop{display:none!important}.app-shell{height:100%!important;min-height:0!important;padding-top:0!important;align-items:stretch!important;overflow:hidden!important}.side-panel,.sidebar-resizer{height:100%!important;min-height:0!important}.side-panel{position:relative!important;top:0!important;max-height:none!important;overflow:auto!important}.side-panel>.panel-section:first-child,.settings-modal-panel{display:none!important}.workspace{height:100%!important;min-height:0!important;display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;align-content:stretch!important;overflow:hidden!important}.workspace-top{position:relative!important;top:auto!important}.order-rows{min-height:0!important;height:100%!important;display:grid!important;grid-template-rows:minmax(0,1fr)!important;overflow:hidden!important;padding-bottom:0!important}.table-mode-wrap{height:100%!important;min-height:0!important;max-height:none!important;overflow:auto!important}.card-mode-shell{height:100%!important;min-height:0!important;align-items:stretch!important;overflow:hidden!important}.cards-list-panel{position:relative!important;top:auto!important;height:100%!important;min-height:0!important;grid-template-rows:auto minmax(0,1fr)!important;overflow:hidden!important}.cards-list-scroll{height:100%!important;min-height:0!important;max-height:none!important;overflow:auto!important}.cards-detail-column{height:100%!important;min-height:0!important;overflow:auto!important}.detail-panel{min-height:min-content!important}.action-modal{z-index:460!important}.confirm-modal{z-index:520!important}`;
+    doc.head.append(style);
+    moduleApi(tool)?.setTheme?.(state.theme);
+    frame.contentWindow?.postMessage({type:'ops-toolkit-shell',projectId:state.project,theme:state.theme},location.origin);
   } catch { /* frame is still initializing */ }
 }
 async function checkServer() {
@@ -484,11 +530,11 @@ function bindEvents() {
   window.addEventListener('hashchange',()=>{const tool=location.hash.slice(1);if(TOOLS[tool])setActiveTool(tool,{skipHash:true});});
   window.addEventListener('message',event=>{
     if(event.origin!==location.origin)return;
-    if(event.data?.type==='ops-toolkit-ready'){els.frameLoading.hidden=true;configureEmbeddedFrame(frameFor(event.data.tool),event.data.tool);ensureDefaultDensity(event.data.tool);setProject(state.project,{silent:true});if(event.data.tool===state.tool)renderToolActions();}
+    if(event.data?.type==='ops-toolkit-ready'){els.frameLoading.hidden=true;configureEmbeddedFrame(frameFor(event.data.tool),event.data.tool);ensureDefaultDensity(event.data.tool);moduleApi(event.data.tool)?.setTheme?.(state.theme);setProject(state.project,{silent:true});if(event.data.tool===state.tool)renderToolActions();}
     if(event.data?.type==='ops-toolkit-client-cleared'){void Promise.resolve(moduleApi(event.data.tool)?.refreshCredentials?.()).then(()=>renderClient());}
     if(event.data?.type==='ops-toolkit-module-state'&&TOOLS[event.data.tool]){moduleState[event.data.tool]={...moduleState[event.data.tool],busy:Boolean(event.data.busy),summary:event.data.summary||moduleState[event.data.tool].summary};if(!event.data.busy&&event.data.tool===state.tool)activeAction='';renderBusyLocks();renderOrdersSummary();renderWorkflow();renderToolActions();}
   });
-  for(const [tool,definition] of Object.entries(TOOLS)){const frame=document.getElementById(definition.frame);frame.addEventListener('load',()=>{configureEmbeddedFrame(frame,tool);els.frameLoading.hidden=true;});}
+  for(const [tool,definition] of Object.entries(TOOLS)){const frame=document.getElementById(definition.frame);frame.addEventListener('load',()=>{configureEmbeddedFrame(frame,tool);moduleApi(tool)?.setTheme?.(state.theme);els.frameLoading.hidden=true;});}
 }
 function initTooltips() {
   let target = null;
@@ -508,5 +554,5 @@ function initTooltips() {
   document.addEventListener('focusin',event=>show(event.target.closest('[data-tooltip],[title],[aria-label]')));
   document.addEventListener('focusout',hide); window.addEventListener('scroll',hide,true);
 }
-function init() { document.documentElement.dataset.theme=state.theme;document.documentElement.dataset.project=state.project;bindEvents();initTooltips();const hashTool=location.hash.slice(1);setActiveTool(TOOLS[hashTool]?hashTool:state.tool,{skipHash:false});setProject(state.project,{silent:true});renderSettingsForm();renderBusyLocks();void checkServer(); }
+function init() { document.documentElement.dataset.project=state.project;bindEvents();initTooltips();applyShellTheme(false);const hashTool=location.hash.slice(1);setActiveTool(TOOLS[hashTool]?hashTool:state.tool,{skipHash:false});setProject(state.project,{silent:true});renderSettingsForm();renderBusyLocks();void checkServer(); }
 init();

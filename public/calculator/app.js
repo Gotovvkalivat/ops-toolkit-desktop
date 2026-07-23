@@ -6148,8 +6148,8 @@
     openHelp() { openHelpModal(); },
     setTheme(theme) {
       state.settings.theme = theme;
-      persistSettings();
       applyTheme(theme);
+      try { persistSettings(); } catch { /* applying the theme must not depend on local storage */ }
     },
     getSettings() {
       const p = projectSettings();

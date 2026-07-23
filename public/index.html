@@ -6,7 +6,17 @@
   <meta name="color-scheme" content="light dark">
   <title>OPS Toolkit Desktop</title>
   <link rel="icon" type="image/png" href="/orders/icon128.png">
-  <link rel="stylesheet" href="desktop.css?v=0.5.0">
+  <script>
+    try {
+      const savedShell = JSON.parse(localStorage.getItem('opsToolkitDesktop.shell.v3') || '{}');
+      const initialTheme = savedShell.theme === 'dark' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = initialTheme;
+      document.documentElement.style.colorScheme = initialTheme;
+    } catch {
+      document.documentElement.dataset.theme = 'light';
+    }
+  </script>
+  <link rel="stylesheet" href="desktop.css?v=0.5.1">
 </head>
 <body>
   <div class="app-frame">
@@ -85,12 +95,12 @@
           <span>Введите ИНН клиента, затем добавьте заказы.</span>
         </div>
         <ol id="workflowStages" class="workflow-stages">
-          <li data-workflow-stage="client"><i>1</i><span>Клиент</span><b>не выбран</b></li>
-          <li data-workflow-stage="setup"><i>2</i><span>Дата и тариф</span><b>не заданы</b></li>
-          <li data-workflow-stage="orders"><i>3</i><span>Заказы</span><b>0</b></li>
-          <li data-workflow-stage="calculation"><i>4</i><span>Расчёт</span><b>0/0</b></li>
-          <li data-workflow-stage="check"><i>5</i><span>Проверка</span><b>—</b></li>
-          <li data-workflow-stage="create"><i>6</i><span>Создание</span><b>0</b></li>
+          <li data-workflow-stage="client"><i>1</i><span>Клиент</span><b>Сейчас</b></li>
+          <li data-workflow-stage="setup"><i>2</i><span>Дата и тариф</span><b>Далее</b></li>
+          <li data-workflow-stage="orders"><i>3</i><span>Заказы</span><b>Далее</b></li>
+          <li data-workflow-stage="calculation"><i>4</i><span>Расчёт</span><b>Далее</b></li>
+          <li data-workflow-stage="check"><i>5</i><span>Проверка</span><b>Далее</b></li>
+          <li data-workflow-stage="create"><i>6</i><span>Создание</span><b>Далее</b></li>
         </ol>
       </section>
     </header>
@@ -161,6 +171,6 @@
   </div>
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
   <div id="appTooltip" class="app-tooltip" role="tooltip" hidden></div>
-  <script src="desktop.js?v=0.5.0"></script>
+  <script src="desktop.js?v=0.5.1"></script>
 </body>
 </html>
