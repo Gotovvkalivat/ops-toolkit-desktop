@@ -10,6 +10,7 @@
   --primary-contrast: #ffffff;
   --primary-ring: rgba(23,105,224,.12);
   --primary-shadow: rgba(23,105,224,.2);
+  --primary-soft: color-mix(in srgb, var(--primary) 10%, var(--surface));
   --accent: #13a05a;
   --danger: #d64545;
   --warning: #c57b13;
@@ -1652,6 +1653,155 @@ html[data-theme="dark"] .quick-client-result.error { background: #4b1f1f; border
   }
   #companyModal .analytics-filter-limits-title,
   #companyModal .analytics-filter-limits .filter-reset { grid-column: 1 / -1; }
+}
+
+/* Keep analytics filters in one compact row; checkbox fields must not inherit text-input sizing. */
+#companyModal .company-filters-rich {
+  display: grid !important;
+  grid-template-columns:
+    minmax(230px, 1.45fr)
+    repeat(6, minmax(100px, .72fr))
+    repeat(3, minmax(105px, .66fr))
+    auto;
+  align-items: end !important;
+  gap: 6px;
+  width: 100%;
+  min-width: 1380px;
+  padding: 0 0 4px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
+}
+#companyModal .analytics-filter-facets {
+  display: contents;
+}
+#companyModal .analytics-filter-limits {
+  display: contents;
+}
+#companyModal .analytics-filter-limits-title {
+  display: none;
+}
+#companyModal .analytics-limit-field {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 1px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 4px 8px 3px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+#companyModal .analytics-limit-field > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1.1;
+}
+#companyModal .analytics-filter-limits .analytics-limit-field input {
+  width: 100%;
+  min-height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  outline: 0;
+}
+#companyModal .analytics-limit-field:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-ring);
+}
+#companyModal .analytics-filter-limits .filter-reset {
+  min-height: 42px;
+  padding-inline: 10px;
+}
+#companyModal .manager-columns-picker {
+  position: relative;
+  width: max-content;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+#companyModal .manager-columns-picker > summary {
+  width: max-content;
+  min-height: 32px;
+  padding: 5px 10px;
+}
+#companyModal .manager-columns-picker .metric-checkboxes {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 80;
+  width: min(980px, calc(100vw - 90px));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 6px;
+  max-height: 210px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .24);
+}
+#companyModal .manager-columns-picker .metric-checkboxes label {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 34px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.25;
+  cursor: pointer;
+}
+#companyModal .manager-columns-picker .metric-checkboxes label:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--line));
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+}
+#companyModal .manager-columns-picker .metric-checkboxes label:has(input:checked) {
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--line));
+}
+#companyModal .manager-columns-picker .metric-checkboxes input[type="checkbox"] {
+  appearance: auto;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: none !important;
+  accent-color: var(--primary);
+}
+#companyModal .manager-columns-picker .metric-checkboxes span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  #companyModal .company-filters-rich {
+    min-width: 1260px;
+  }
+  #companyModal .manager-columns-picker .metric-checkboxes {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    top: 110px;
+    width: auto;
+    max-height: calc(100dvh - 130px);
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
 }
 
 .analytics-help-modal.open { align-items:center; justify-content:center; padding:14px; }

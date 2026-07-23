@@ -9,7 +9,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-const string AppVersion = "0.5.3";
+const string AppVersion = "0.5.4";
 
 var publicPath = ResolvePublicPath();
 var port = FindAvailablePort(ReadPort());

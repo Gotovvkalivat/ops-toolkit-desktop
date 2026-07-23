@@ -338,10 +338,10 @@
           </div>
           <div class="analytics-filter-limits">
             <span class="analytics-filter-limits-title">Ограничения</span>
-            <label>Цена от<input id="companyPriceMin" type="number" min="0" placeholder="Без минимума"></label>
-            <label>Цена до<input id="companyPriceMax" type="number" min="0" placeholder="Без максимума"></label>
-            <label>Макс. срок, дней <span class="help" data-tip="При заполненном фильтре тарифы со сроком «По запросу» скрываются">?</span><input id="companyPeriodMax" type="number" min="0" placeholder="Без ограничения"></label>
-            <button id="resetCompanyFiltersBtn" class="button ghost filter-reset" type="button">Сбросить фильтры</button>
+            <label class="analytics-limit-field"><span>Цена от</span><input id="companyPriceMin" type="number" min="0" placeholder="Без минимума"></label>
+            <label class="analytics-limit-field"><span>Цена до</span><input id="companyPriceMax" type="number" min="0" placeholder="Без максимума"></label>
+            <label class="analytics-limit-field"><span>Срок до, дней <span class="help" data-tip="При заполненном фильтре тарифы со сроком «По запросу» скрываются">?</span></span><input id="companyPeriodMax" type="number" min="0" placeholder="Без ограничения"></label>
+            <button id="resetCompanyFiltersBtn" class="button secondary filter-reset" type="button">Сбросить</button>
           </div>
         </div>
       </div>

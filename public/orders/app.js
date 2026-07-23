@@ -9,7 +9,7 @@
   const CREATE_CHUNK_SIZE = 20;
   const MAX_CONCURRENCY = 6;
   const MAX_CANCEL_CONCURRENCY = 5;
-  const DEFAULT_CALCULATION_TIMEOUT_MS = 90000;
+  const DEFAULT_CALCULATION_TIMEOUT_MS = 120000;
   const DEFAULT_CALCULATION_RETRIES = 1;
   const VIRTUAL_ROW_BUFFER = 8;
   const CARD_VIRTUAL_ROW_HEIGHT = 138;
@@ -934,8 +934,12 @@
       if (saved.settings) {
         state.settings = { ...state.settings, ...saved.settings };
         if (!saved.settings.concurrencyDefaultVersion && Number(saved.settings.concurrency) === 6) state.settings.concurrency = 3;
+        if (!saved.settings.timeoutDefaultVersion && Number(saved.settings.timeoutMs) === 90000) {
+          state.settings.timeoutMs = DEFAULT_CALCULATION_TIMEOUT_MS;
+        }
       }
       state.settings.concurrencyDefaultVersion = 2;
+      state.settings.timeoutDefaultVersion = 2;
       if (!DEFAULT_PROJECTS.some(project => project.id === state.settings.projectId)) state.settings.projectId = 'kd';
       const legacyWorkspace = saved.rows || saved.bulk || saved.created ? saved : null;
       await loadProjectWorkspace(state.settings.projectId, legacyWorkspace);
@@ -1293,7 +1297,7 @@
   function calculationTimeoutMs(value = state.settings.timeoutMs) {
     const seconds = Math.round(Number(value) / 1000);
     const normalized = Number.isFinite(seconds) && seconds > 0 ? seconds : Number(value);
-    const finalSeconds = Math.min(300, Math.max(30, Number(normalized) || 90));
+    const finalSeconds = Math.min(300, Math.max(30, Number(normalized) || (DEFAULT_CALCULATION_TIMEOUT_MS / 1000)));
     return finalSeconds * 1000;
   }
   function calculationTimeoutSeconds() {
