@@ -14,19 +14,27 @@ const TOOLS = {
     title: 'Массовый расчёт доставки', hint: 'Тарифы, сравнение ТК и аналитика', frame: 'calculatorFrame', clientKey: 'calculatorClient',
     settingsTitle: 'Массовый расчёт', settingsHint: 'Лучший тариф, нагрузка, выгрузка и отображение.',
     actions: [
-      ['add-row', 'Добавить строку', 'plus', 'secondary', true], ['paste', 'Вставить из буфера', 'clipboard', 'secondary', true],
-      ['template', 'Шаблон XLSX', 'file', 'secondary', true], ['example', 'Добавить пример', 'sparkles', 'secondary', true],
-      ['import', 'Загрузить файл', 'upload', 'secondary'], ['toggle-auto', 'Авторасчёт', 'auto', 'secondary', true],
-      ['calculate', 'Рассчитать всё', 'calculator', 'primary']
+      ['add-row', 'Добавить строку', 'plus', 'secondary', false, 'visible'],
+      ['paste', 'Вставить из буфера', 'clipboard', 'secondary', false, 'visible'],
+      ['import', 'Загрузить файл', 'upload', 'secondary', false, 'visible'],
+      ['calculate', 'Рассчитать всё', 'calculator', 'primary', false, 'visible'],
+      ['template', 'Шаблон XLSX', 'file', 'secondary', false, 'more'],
+      ['example', 'Добавить пример', 'sparkles', 'secondary', false, 'more'],
+      ['toggle-auto', 'Авторасчёт', 'auto', 'secondary', false, 'more']
     ]
   },
   orders: {
     title: 'Массовое оформление заказов', hint: 'Импорт, расчёт и создание заказов', frame: 'ordersFrame', clientKey: 'ordersClient',
     settingsTitle: 'Массовое оформление', settingsHint: 'Нагрузка, авторасчёт, производительность и интерфейс.',
     actions: [
-      ['toggle-view', 'Сменить вид', 'table', 'secondary', true], ['template', 'Шаблон XLSX', 'file', 'secondary', true],
-      ['toggle-auto', 'Авторасчёт', 'auto', 'secondary', true], ['calculate', 'Рассчитать', 'calculator', 'secondary'],
-      ['create', 'Создать', 'check', 'primary'], ['import', 'Загрузить', 'upload', 'primary']
+      ['import', 'Загрузить заказы', 'upload', 'secondary', false, 'visible'],
+      ['calculate', 'Рассчитать', 'calculator', 'secondary', false, 'visible'],
+      ['create', 'Создать выбранные', 'check', 'primary', false, 'visible'],
+      ['resolve', 'Распознать адреса', 'refresh', 'secondary', false, 'more'],
+      ['toggle-view', 'Сменить вид', 'table', 'secondary', false, 'more'],
+      ['template', 'Шаблон XLSX', 'file', 'secondary', false, 'more'],
+      ['toggle-auto', 'Авторасчёт', 'auto', 'secondary', false, 'more'],
+      ['start-over', 'Начать заново', 'refresh', 'secondary', false, 'more']
     ]
   }
 };
@@ -39,7 +47,9 @@ const ICONS = {
   auto: '<path d="M20 7h-5V2M4 17h5v5"/><path d="M5.6 8A8 8 0 0 1 18 5l2 2M18.4 16A8 8 0 0 1 6 19l-2-2"/>'
   ,plus: '<path d="M12 5v14M5 12h14"/>',
   clipboard: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M8 9h8M8 13h8M8 17h5"/>',
-  stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>'
+  stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>',
+  refresh: '<path d="M20 7h-5V2M4 17h5v5"/><path d="M5.6 8A8 8 0 0 1 18 5l2 2M18.4 16A8 8 0 0 1 6 19l-2-2"/>',
+  more: '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>'
 };
 const LOCAL_ENDPOINTS = {
   auth: '/api/auth/login', deliveryCompanies: '/api/reference/delivery-companies', searchUser: '/api/clients/search',
@@ -58,6 +68,7 @@ const els = {
   authStatus: $('#authStatus'), checkCredentialsButton: $('#checkCredentialsButton'), saveSettingsButton: $('#saveSettingsButton'), debugModeInput: $('#debugModeInput'),
   frameLoading: $('#frameLoading'), toastRegion: $('#toastRegion'), appTooltip: $('#appTooltip'),
   ordersNavbarSummary: $('#ordersNavbarSummary'), ordersSelectedCount: $('#ordersSelectedCount'), ordersSelectedTotal: $('#ordersSelectedTotal'),
+  workflowBar: $('#workflowBar'), workflowMessage: $('#workflowMessage'), workflowStages: $('#workflowStages'),
   refreshCacheButton: $('#refreshCacheButton'), clearCacheButton: $('#clearCacheButton'), cacheStatus: $('#cacheStatus')
 };
 els.confirmDialog = $('#confirmDialog'); els.confirmTitle = $('#confirmTitle'); els.confirmMessage = $('#confirmMessage'); els.confirmAcceptButton = $('#confirmAcceptButton');
@@ -111,6 +122,7 @@ function setActiveTool(tool, options = {}) {
   els.sectionSettingsTitle.textContent = definition.settingsTitle; els.sectionSettingsHint.textContent = definition.settingsHint;
   renderToolActions(); renderClient();
   renderOrdersSummary();
+  renderWorkflow();
   if (!els.settingsDrawer.hidden) renderSettingsForm();
   if (!options.skipHash) history.replaceState(null, '', `#${tool}`);
 }
@@ -138,12 +150,19 @@ function renderToolActions() {
   const moduleSettings = moduleApi()?.getSettings?.() || {};
   const busy = toolBusy();
   const stopLabel = activeAction === 'create' ? 'Остановить создание' : activeAction === 'resolve' ? 'Остановить распознавание' : 'Остановить расчёт';
-  const actions = busy ? [['stop', stopLabel, 'stop', 'danger']] : TOOLS[state.tool].actions;
-  els.toolActions.innerHTML = actions.map(([action,label,icon,tone,compact]) => {
+  const actions = busy ? [['stop', stopLabel, 'stop', 'danger', false, 'visible']] : TOOLS[state.tool].actions;
+  const buttonMarkup = ([action,label,icon,tone,compact]) => {
     const active = action === 'toggle-auto' && moduleSettings.autoCalculate;
     const disabled = activeAction && action !== 'stop';
     return `<button class="button ${tone} ${compact ? 'compact-action' : ''} ${active ? 'active' : ''}" type="button" data-tool-action="${action}" data-tooltip="${label}${active ? ': включён' : ''}" aria-label="${label}" ${disabled ? 'disabled' : ''}>${svg(icon)}${compact ? '' : `<span class="action-label">${label}</span>`}</button>`;
-  }).join('');
+  };
+  const visible = actions.filter(action => action[5] !== 'more');
+  const more = actions.filter(action => action[5] === 'more');
+  els.toolActions.innerHTML = `${visible.map(buttonMarkup).join('')}${more.length ? `
+    <details class="tool-more">
+      <summary class="icon-button" data-tooltip="Дополнительные действия" aria-label="Дополнительные действия">${svg('more')}</summary>
+      <div class="tool-more-menu">${more.map(buttonMarkup).join('')}</div>
+    </details>` : ''}`;
 }
 function renderOrdersSummary() {
   const visible = state.tool === 'orders';
@@ -152,6 +171,44 @@ function renderOrdersSummary() {
   const summary = moduleState.orders.summary || {};
   els.ordersSelectedCount.textContent = String(summary.selected || 0);
   els.ordersSelectedTotal.textContent = summary.selectedTotalText || '0 ₽';
+}
+function renderWorkflow() {
+  const summary = moduleState.orders.summary || {};
+  const visible = state.tool === 'orders' && summary.showOnboarding !== false;
+  els.workflowBar.hidden = !visible;
+  document.body.classList.toggle('workflow-visible', visible);
+  if (!visible) return;
+
+  const total = Number(summary.total || 0);
+  const resolved = Number(summary.resolved || 0);
+  const calculated = Number(summary.calculated || 0);
+  const issues = Number(summary.issues || 0);
+  const created = Number(summary.created || 0);
+  const stages = {
+    client: { done: Boolean(summary.clientReady), value: summary.clientReady ? 'выбран' : 'не выбран' },
+    setup: { done: Boolean(summary.setupReady), value: summary.setupReady ? 'заданы' : 'не заданы' },
+    orders: { done: total > 0, value: String(total) },
+    calculation: { done: total > 0 && resolved >= total && calculated >= total, value: `${calculated}/${total}` },
+    check: { done: total > 0 && issues === 0 && calculated >= total, value: issues ? `${issues} ошибок` : total ? 'готово' : '—', error: issues > 0 },
+    create: { done: total > 0 && created >= total, value: String(created) }
+  };
+  const activeKey = !stages.client.done ? 'client'
+    : !stages.setup.done ? 'setup'
+    : !stages.orders.done ? 'orders'
+    : !stages.calculation.done ? 'calculation'
+    : !stages.check.done ? 'check'
+    : 'create';
+  els.workflowStages.querySelectorAll('[data-workflow-stage]').forEach(item => {
+    const stage = stages[item.dataset.workflowStage];
+    item.classList.toggle('done', Boolean(stage?.done));
+    item.classList.toggle('active', item.dataset.workflowStage === activeKey);
+    item.classList.toggle('error', Boolean(stage?.error));
+    const value = item.querySelector('b');
+    if (value) value.textContent = stage?.value || '—';
+  });
+  const title = summary.nextTitle || (!summary.clientReady ? 'Выберите клиента' : !total ? 'Добавьте заказы' : issues ? 'Исправьте строки с ошибками' : 'Заказы готовы к созданию');
+  const hint = summary.nextHint || (!summary.clientReady ? 'Введите ИНН в шапке приложения.' : 'Следуйте этапам слева направо.');
+  els.workflowMessage.innerHTML = `<b>${escapeHtml(title)}</b><span>${escapeHtml(hint)}</span>`;
 }
 function renderClient() {
   const client = activeClient();
@@ -343,11 +400,21 @@ function configureEmbeddedFrame(frame, tool) {
     doc.querySelector('style[data-desktop-shell]')?.remove(); const style = doc.createElement('style'); style.dataset.desktopShell = 'true';
     style.textContent = tool === 'calculator'
       ? `.topbar,.primary-toolbar{display:none!important}.shell{padding-top:0!important;min-height:100vh!important}.settings-panel{display:none!important}`
-      : `html,body{height:100%!important;overflow:hidden!important}.app-header{display:none!important}.app-shell{height:100%!important;min-height:0!important;padding-top:0!important;align-items:stretch!important}.workspace-top{top:0!important}.side-panel,.workspace,.sidebar-resizer{height:100%!important;min-height:0!important}.side-panel{position:relative!important;top:0!important;max-height:none!important;overflow:auto!important}.side-panel>.panel-section:first-child,.settings-modal-panel{display:none!important}.action-modal{z-index:460!important}.confirm-modal{z-index:520!important}`;
+      : `html,body{height:100%!important;overflow:hidden!important}.app-header,.workflow-steps{display:none!important}.app-shell{height:100%!important;min-height:0!important;padding-top:0!important;align-items:stretch!important}.workspace-top{top:0!important}.side-panel,.workspace,.sidebar-resizer{height:100%!important;min-height:0!important}.side-panel{position:relative!important;top:0!important;max-height:none!important;overflow:auto!important}.side-panel>.panel-section:first-child,.settings-modal-panel{display:none!important}.action-modal{z-index:460!important}.confirm-modal{z-index:520!important}`;
     doc.head.append(style); frame.contentWindow?.postMessage({type:'ops-toolkit-shell',projectId:state.project,theme:state.theme},location.origin);
   } catch { /* frame is still initializing */ }
 }
-async function checkServer() { try { const response=await fetch('/api/health',{cache:'no-store'}), data=await response.json(); if(!response.ok||!data.ok)throw new Error(); els.serverStatus.textContent='Готов к работе'; els.serverStatus.className='ready'; } catch { els.serverStatus.textContent='Нет связи'; els.serverStatus.className='error'; } }
+async function checkServer() {
+  try {
+    const response = await fetch('/api/health', { cache: 'no-store' }), data = await response.json();
+    if (!response.ok || !data.ok) throw new Error();
+    els.serverStatus.innerHTML = '<i aria-hidden="true"></i> Готов к работе';
+    els.serverStatus.className = 'ready';
+  } catch {
+    els.serverStatus.innerHTML = '<i aria-hidden="true"></i> Нет связи';
+    els.serverStatus.className = 'error';
+  }
+}
 
 async function refreshCacheStatus() {
   els.refreshCacheButton.disabled = true;
@@ -380,7 +447,12 @@ function askConfirmation(title, message, acceptText = 'Продолжить') {
 function bindEvents() {
   els.toolTabs.forEach(button=>button.addEventListener('click',()=>setActiveTool(button.dataset.tool)));
   els.projectTabs.addEventListener('click',event=>{const button=event.target.closest('[data-project]');if(button)setProject(button.dataset.project);});
-  els.toolActions.addEventListener('click',event=>{const button=event.target.closest('[data-tool-action]');if(button)runToolAction(button.dataset.toolAction);});
+  els.toolActions.addEventListener('click',event=>{
+    const button=event.target.closest('[data-tool-action]');
+    if (!button) return;
+    button.closest('.tool-more')?.removeAttribute('open');
+    runToolAction(button.dataset.toolAction);
+  });
   els.findClientButton.addEventListener('click',()=>void findClient());
   els.clientInnInput.addEventListener('beforeinput',event=>{if(anyModuleBusy()){event.preventDefault();toast('Дождитесь завершения текущей операции','error');}});
   els.clientInnInput.addEventListener('input',()=>{
@@ -402,13 +474,19 @@ function bindEvents() {
   els.checkCredentialsButton.addEventListener('click',saveAndCheckCredentials); els.saveSettingsButton.addEventListener('click',saveModuleSettings); els.debugModeInput.addEventListener('change',()=>{state.debug=els.debugModeInput.checked;saveShellState();});
   els.refreshCacheButton.addEventListener('click',()=>void refreshCacheStatus()); els.clearCacheButton.addEventListener('click',()=>void clearUnifiedCache());
   document.querySelectorAll('[data-close-settings]').forEach(button=>button.addEventListener('click',closeSettings));
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!els.settingsDrawer.hidden)closeSettings();});
+  document.addEventListener('click',event=>{const menu=els.toolActions.querySelector('.tool-more[open]');if(menu&&!event.target.closest('.tool-more'))menu.removeAttribute('open');});
+  document.addEventListener('keydown',event=>{
+    if(event.key!=='Escape')return;
+    const menu=els.toolActions.querySelector('.tool-more[open]');
+    if(menu){menu.removeAttribute('open');return;}
+    if(!els.settingsDrawer.hidden)closeSettings();
+  });
   window.addEventListener('hashchange',()=>{const tool=location.hash.slice(1);if(TOOLS[tool])setActiveTool(tool,{skipHash:true});});
   window.addEventListener('message',event=>{
     if(event.origin!==location.origin)return;
     if(event.data?.type==='ops-toolkit-ready'){els.frameLoading.hidden=true;configureEmbeddedFrame(frameFor(event.data.tool),event.data.tool);ensureDefaultDensity(event.data.tool);setProject(state.project,{silent:true});if(event.data.tool===state.tool)renderToolActions();}
     if(event.data?.type==='ops-toolkit-client-cleared'){void Promise.resolve(moduleApi(event.data.tool)?.refreshCredentials?.()).then(()=>renderClient());}
-    if(event.data?.type==='ops-toolkit-module-state'&&TOOLS[event.data.tool]){moduleState[event.data.tool]={...moduleState[event.data.tool],busy:Boolean(event.data.busy),summary:event.data.summary||moduleState[event.data.tool].summary};if(!event.data.busy&&event.data.tool===state.tool)activeAction='';renderBusyLocks();renderOrdersSummary();renderToolActions();}
+    if(event.data?.type==='ops-toolkit-module-state'&&TOOLS[event.data.tool]){moduleState[event.data.tool]={...moduleState[event.data.tool],busy:Boolean(event.data.busy),summary:event.data.summary||moduleState[event.data.tool].summary};if(!event.data.busy&&event.data.tool===state.tool)activeAction='';renderBusyLocks();renderOrdersSummary();renderWorkflow();renderToolActions();}
   });
   for(const [tool,definition] of Object.entries(TOOLS)){const frame=document.getElementById(definition.frame);frame.addEventListener('load',()=>{configureEmbeddedFrame(frame,tool);els.frameLoading.hidden=true;});}
 }

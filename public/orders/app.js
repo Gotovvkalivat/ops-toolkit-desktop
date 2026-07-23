@@ -2950,9 +2950,26 @@
   }
   function renderStats() {
     const snapshot = withIssueCache(() => collectWorkflowStats());
+    const next = nextWorkflowAction(snapshot);
     window.parent?.postMessage({
       type: 'ops-toolkit-module-state', tool: 'orders', busy: Boolean(state.running || state.uiBusy),
-      summary: { total: state.rows.length, selected: snapshot.selected, selectedTotal: snapshot.selectedTotal, selectedTotalText: moneyText(snapshot.selectedTotal) }
+      summary: {
+        total: state.rows.length,
+        resolved: snapshot.resolved,
+        calculated: snapshot.calculated,
+        issues: snapshot.issues,
+        ready: snapshot.ready,
+        created: snapshot.created,
+        errors: snapshot.errors,
+        clientReady: snapshot.clientReady,
+        setupReady: snapshot.setupReady,
+        selected: snapshot.selected,
+        selectedTotal: snapshot.selectedTotal,
+        selectedTotalText: moneyText(snapshot.selectedTotal),
+        showOnboarding: state.settings.showOnboarding !== false,
+        nextTitle: next.title,
+        nextHint: next.hint
+      }
     }, location.origin);
     const attention = snapshot.attention;
     if (state.reviewMode && !attention.length) {
